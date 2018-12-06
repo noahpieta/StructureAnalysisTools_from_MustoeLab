@@ -9,13 +9,12 @@
 # Modifications
 # Version 2.1 with plot profile option
 #
-#
-#
 # ---------------------------------------------------------------------------------------
+
 
 import sys, os, math, argparse
 
-import RNAtools
+import RNAtools2 as RNAtools
 
 import matplotlib 
 #matplotlib.use('Agg')
@@ -883,7 +882,7 @@ class ArcPlot(object):
         
         with open(profilefile) as inp:
             line = inp.readline().split()
-            if len(line) == 2:
+            if len(line) == 2 or len(line)==4:
                 ftype=1
             else:
                 ftype=2
@@ -891,12 +890,14 @@ class ArcPlot(object):
 
         if ftype==1:
             self.readProfile(profilefile)
-
+        
         else:
-            import plotTools
-            profile = plotTools.ReactivityProfile(profilefile)
-            profile.normalize(DMS=True)
-            self.reactprofile = profile.normprofile
+            raise IOError('Unexpected dms profile format')
+        #else:
+        #    import plotTools
+        #    profile = plotTools.ReactivityProfile(profilefile)
+        #    profile.normalize(DMS=True)
+        #    self.reactprofile = profile.normprofile
         
 
         self.reactprofileType = 'DMS'

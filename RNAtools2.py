@@ -33,6 +33,12 @@
 ########################################################
 
 # CHANGE-LOG
+#   Feb 2020 Added separate filterNC, filter single functionality
+#            -CT masking functionality,
+#            -bp consistency checking
+#            -writeRNAstructureSeq
+#            -addPairs 
+#
 #   12/6/18 Full merging of Tony's RNAtools
 # 
 #   v0.8.1  contact distance fixed
@@ -84,13 +90,14 @@ class CT(object):
         self.seq = list(seq)
 
 
-    def readCT(self, fIN, structNum = 0, filterNC = False):
+    def readCT(self, fIN, structNum = 0, filterNC = False, filterSingle=False):
         """
         reads a ct file, !requires header!
         structNum allows selection of a given SS if multiple are stored in the same file
-        filterNC will check the bps and filter out any between NC or singleton bps
+        filterNC will check the bps and filter out any between NC
+        filterSingle will filter out any singleton bps
         """
-        num,seq,bp = [],[],[]
+        num,seq,bp,mask = [],[],[],[]
         
         try:
             with open(fIN) as f:
@@ -112,12 +119,17 @@ class CT(object):
                         
                         header = ' '.join(spl[1:])
                         continue
-
+                    
                     if curstruct == structNum:
-                        num.append(int(spl[0]))
-                        seq.append(str(spl[1]))
-                        bp.append(int(spl[4]))
-        
+                        num.append( int(spl[0]) )
+                        seq.append( str(spl[1]) )
+                        bp.append( int(spl[4]) )
+                        
+                        # check if there is masking info
+                        if len(spl)== 7 and spl[6]=='1':
+                            mask.append(1)
+                        else:
+                            mask.append(0)
 
         except Exception as e:
             raise IOError("{0} has invalid format or does not exist".format(fIN))
@@ -128,24 +140,38 @@ class CT(object):
         if 'T' in seq:
             print "Note: T nucleotides have been recoded as U"
             seq = ['U' if x=='T' else x for x in seq]
+        
+        # check consistency!
+        for i in range(len(bp)):
+            if bp[i] != 0:  
+                p1 = (i+1, bp[i])
+                p2 = (bp[bp[i]-1], bp[i])
+                if p1 != p2:
+                    print("WARNING: Inconsistent pair {0[0]}-{0[1]} vs. {1[0]}-{1[1]}".format(p1,p2))
+
+
+
 
         self.name= fIN
         self.header = header
         self.num = num
         self.seq = seq
         self.ct  = bp
+        self.mask = mask
     
+
         if filterNC:
             self.filterNC()
-
+        
+        if filterSingle:
+            self.filterSingleton()
     
 
     def filterNC(self):
         """
-        Filter out NC and singleton basepairs from the ct datastructure
+        Filter out non-canonical basepairs from the ct datastructure
         """
 
-        
         for i, nt in enumerate(self.ct):
          
             if nt == 0:
@@ -160,10 +186,23 @@ class CT(object):
                 #print 'Deleted %d %s' % (self.num[i], self.seq[i])
                 continue
             
+        
+    def filterSingleton(self):
+        """
+        Filter out singleton basepairs from the ct datastructure
+        """
+
+        for i, nt in enumerate(self.ct):
+         
+            if nt == 0:
+                continue
+            
+            pi = self.num.index(nt)
+            
             neigh = False
             for j in (-1, 1):
                 try:
-                    neigh = neigh or (nt-self.ct[i+j] == j)
+                    neigh = (neigh or (nt-self.ct[i+j] == j))
                 except IndexError:
                     pass
 
@@ -174,11 +213,18 @@ class CT(object):
 
 
 
-    def writeCT(self,fOUT):
+    def writeCT(self, fOUT, writemask=False):
         """
         writes a ct file from the ct object
+        writemask = True will write out any masking info
         """
         
+        try:
+            mask = writemask and len(self.mask) == len(self.ct)
+        except:
+            mask = False
+
+
         #handle empty ct object case
         if not self.ct:
             print "empty ct object. Nothing to write"
@@ -187,16 +233,29 @@ class CT(object):
         w = open(fOUT,'w')
         w.write('{0:6d} {1}\n'.format(len(self.num),self.name))
         for i in range(len(self.num)-1):
-            line = '{0:5d} {1} {2:5d} {3:5d} {4:5d} {0:5d}\n'.format(self.num[i],self.seq[i],
-                                                                     self.num[i]-1,self.num[i]+1,self.ct[i])
+            
+            if mask and self.mask[i]:
+                line = '{0:5d} {1} {2:5d} {3:5d} {4:5d} {0:5d} 1\n'.format(self.num[i],self.seq[i],self.num[i]-1,self.num[i]+1,self.ct[i])
+            else:
+                line = '{0:5d} {1} {2:5d} {3:5d} {4:5d} {0:5d}\n'.format(self.num[i],self.seq[i],self.num[i]-1,self.num[i]+1,self.ct[i])
             w.write(line)
         
+
+
         #last line is different
         i = len(self.num)-1
-        line = '{0:5d} {1} {2:5d} {3:5d} {4:5d} {0:5d}\n'.format(self.num[i],self.seq[i],self.num[i]-1,0,self.ct[i])
+
+        if mask and self.mask[i]:
+            line = '{0:5d} {1} {2:5d} {3:5d} {4:5d} {0:5d} 1\n'.format(self.num[i],self.seq[i],self.num[i]-1,0,self.ct[i])
+        else:
+            line = '{0:5d} {1} {2:5d} {3:5d} {4:5d} {0:5d}\n'.format(self.num[i],self.seq[i],self.num[i]-1,0,self.ct[i])
+
         w.write(line)
         w.close()
     
+
+
+
     def copy(self):
         """
         returns a deep copy of the ct object
@@ -253,9 +312,26 @@ class CT(object):
 
         return jun
         
+    
+    def addPairs(self, pairs):
+        """Add base pairs to current ct file
+        pairs should be a list of pairs (1-indexed)
+        """
+
+        for i,j in pairs:
+    
+            if self.ct[i-1] != 0:
+                print('Warning: nt {} is already paired!!!'.format(i))
+            if self.ct[j-1] != 0:
+                print('Warning: nt {} is already paired!!!'.format(j))
+
+            self.ct[i-1] = j
+            self.ct[j-1] = i
 
 
-    def pair2CT(self, pairs, seq=None, name=None, skipConflicting=True, filterNC=False):
+
+    def pair2CT(self, pairs, seq=None, name=None, skipConflicting=True, 
+                filterNC=False, filterSingle=False):
         """
         constructs a ct object from a list of base pairs and a sequence
         
@@ -302,6 +378,9 @@ class CT(object):
     
         if filterNC:
             self.filterNC()
+
+        if filterSingle:
+            self.filterSingleton()
     
     
     def getNTslice(self, start=None, end=None):
@@ -805,27 +884,46 @@ class CT(object):
             return
 
 
-    def computePPVSens(self, compCT, exact=True):
+    def computePPVSens(self, compCT, exact=True, mask=False):
         """
         compute the ppv and sensitivity between the current CT and the passed CT
+        exact = True will require BPs to be exactly correct. 
+                False allows +/-1 bp slippage (RNAstructure convention)
+        mask = True will exclude masked regions from calculation
         """
+        
+        # check mask is properly set up if using
+        if mask:
+            try:
+                if len(self.mask) != len(self.ct):
+                    raise AttributeError()
+            except:
+                raise AttributeError('Mask is not properly initialized')
+
 
         if len(self.ct) != len(compCT.ct):
             raise IndexError('CT objects are different sizes')
 
+        # compute totals
         totr, totc = 0, 0 
         for i,v in enumerate(self.ct):
+            
+            if mask and self.mask[i]:
+                continue
             if v!=0:
                 totr+=1
             if compCT.ct[i] !=0:
                 totc+=1
+
         totr /= 2
         totc /= 2
+
 
         sharedpairs = 0
         for i,v in enumerate(self.ct):
             
-            if v==0 or v<i: continue
+            if v==0 or v<i or (mask and self.mask[i]):
+                continue
             
             try:
                 if v == compCT.ct[i]:
@@ -877,8 +975,11 @@ class CT(object):
             out.write('\n//\n')
 
 
+    def writeRNAstructureSeq(self, writename):
 
-
+        with open(writename,'w') as out:
+            out.write(';\nSequence from {0}\n'.format(self.name))
+            out.write('{0}1'.format(''.join(self.seq)))
 
 
         
@@ -1112,7 +1213,7 @@ class DotPlot:
         
         out.close()
         
-    def returnCT(self, probcut = 0.5, skipConflicting=True, filterNC=True):
+    def returnCT(self, probcut = 0.5, skipConflicting=True, filterNC=True, filterSingle=True):
         """
         return a CT object constructed from base pairs above a given pair. prob
         """
@@ -1120,8 +1221,8 @@ class DotPlot:
         newDP = self.requireProb(probcut)
 
         newCT = CT()
-        newCT.pair2CT(newDP.pairList(), [' ']*self.length, 
-                skipConflicting=skipConflicting, filterNC=filterNC)
+        newCT.pair2CT(newDP.pairList(), ['n']*self.length, 
+                skipConflicting=skipConflicting, filterNC=filterNC, filterSingle=filterSingle)
 
         return newCT
 

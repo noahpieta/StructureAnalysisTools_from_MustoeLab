@@ -3,7 +3,7 @@ Code for plotting arcs of various types
 
 Copyright 2018 Anthony Mustoe
 
-Contact: amustoe@unc.edu
+Contact: anthony.mustoe@bcm.edu
 -------------------------
 
 Description

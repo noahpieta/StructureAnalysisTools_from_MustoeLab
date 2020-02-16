@@ -158,11 +158,6 @@ class ArcPlot(object):
         If both outerPair and innerPair are passed, window is not used
         """
         
-        verbal=False
-        if outerPair[0] == 6:
-            verbal=True
-            print outerPair
-
         if innerPair is None:
             innerPair = [outerPair[0]+0.5 + window-1, outerPair[1]-0.5]
             outerPair = [outerPair[0]-0.5, outerPair[1]+0.5 + window-1]
@@ -173,11 +168,6 @@ class ArcPlot(object):
         innerRadius = (innerPair[1] - innerPair[0])/2.0
         outerRadius = (outerPair[1] - outerPair[0])/2.0
         
-        if verbal:
-            print outerPair, innerPair
-            print outerRadius, innerRadius
-
-
         verts = []
         codes = []
 
@@ -283,7 +273,7 @@ class ArcPlot(object):
         
         # check to see if DMS and colthresh defaults not overridden
         if self.reactprofileType == 'DMS' and colthresh == (-10,0.4,0.85,3):
-            colthresh = (-10, 0.2, 0.5, 3)
+            colthresh = (-10, 0.2, 0.5, 2)
             
 
         xvals = [ [] for i in range(4) ]
@@ -365,7 +355,7 @@ class ArcPlot(object):
             bounds = [bounds[0]-0.5, bounds[1]+0.5] # make new copy
 
         
-        doubleplot = len(self.botPatches)>1
+        doubleplot = len(self.botPatches)>0
         scaleFactor = 0.05
         
         figWidth = (bounds[1]-bounds[0])*scaleFactor
@@ -400,7 +390,7 @@ class ArcPlot(object):
             axB.set_ylim(-max(self.height), 0)
             axB.set_frame_on(False)
             axB.axes.get_yaxis().set_visible(False)
-            axB.tick_params(axis='both', which='both', top='off',bottom='off', labelbottom='off')
+            axB.tick_params(axis='both', which='both', top=False, bottom=False, labelbottom=False)
             
             if self.botlegend:
                 self.botlegend.drawLegend(axB, bounds[0], -self.height[0]*.5) 
@@ -487,7 +477,6 @@ class ArcPlot(object):
                              annotation_clip=False,verticalalignment="baseline")
         
 
-        # INDEXING MIGHT BE OFFF -- CHECK!!!
         #if self.intdistance is not None:
         #    xvals = np.arange(bounds[0]+1, bounds[1]+1)
         #    yvals = self.intdistance[bounds[0]:bounds[1]+1]
@@ -505,9 +494,13 @@ class ArcPlot(object):
 
 
         # save the figure
-        if write:
+        if write and outPath != 'show':
             fig.savefig(outPath, dpi=100, bbox_inches="tight", transparent=True)
             plot.close(fig)
+        
+        elif write and outPath == 'show':
+            plot.show()
+
         else:
             return fig, axT, axB 
 
@@ -712,6 +705,11 @@ class ArcPlot(object):
         colors = [(100, 100, 100), (30,194,255), (0,0,243)]
         colors = [tuple([x/255.0 for x in c]) for c in colors]
  
+        
+        if len(self.seq)==0:
+            self.seq = ' '*pmobj.molsize
+
+
         if plotall:
             self.plotAlphaGradient( getZ(pmobj.remainder), colors[0], (0.0,0.8),
                                     1, 6, window=pmobj.window, panel=panel)
@@ -725,7 +723,7 @@ class ArcPlot(object):
         
         # make legend
         c = colors[::-1]  # reverse colors so primary on top
-        l = ['Principal','Secondary','Not passing']
+        l = ['Principal','Minor','Not passing']
         if not plotall:
             c = c[:-1]
             l = l[:-1]
@@ -779,7 +777,7 @@ class ArcPlot(object):
                 scale = (val-lb)/dynamicrange
 
             a = (alpha_range[1]-alpha_range[0])*scale+alpha_range[0]
-
+            
             self.addArcPath( (i,j), window=window, color=color, panel=panel, alpha=a)
 
 
@@ -807,23 +805,24 @@ class ArcPlot(object):
                 refonly.ct[i] = refCT.ct[i]
                 componly.ct[i] = compCT.ct[i]
             
-
-        self.addCT(share, color='green', panel=panel)
-        self.addCT(refonly, color='red', panel=panel)
-        self.addCT(componly, color='purple', panel=panel)
+        sharedcolor = (150/255., 150/255., 150/255.)
+        refcolor = (38/255., 202/255., 145/255.)
+        compcolor = (153/255., 0.0, 1.0)
+        self.addCT(share, color=sharedcolor, panel=panel)
+        self.addCT(refonly, color=refcolor, panel=panel)
+        self.addCT(componly, color=compcolor, panel=panel)
  
 
-        sens,ppv,nums = refCT.computePPVSens(compCT)
-        
+        sens,ppv,nums = refCT.computePPVSens(compCT, False)
         msg = 'Sens={0:.2f} PPV={1:.2f}'.format(sens, ppv)
-        
+        print msg
 
         if panel>0:
-            self.toplegend = ArcLegend(colors=['green','red','purple'], 
+            self.toplegend = ArcLegend(colors=[sharedcolor,refcolor,compcolor], 
                                        labels=['Shared', refCT.name, compCT.name],
                                        msg=msg)                  
         else:
-            self.botlegend = ArcLegend(colors=['green','red','purple'], 
+            self.botlegend = ArcLegend(colors=[sharedcolor,refcolor,compcolor], 
                                        labels=['Shared', refCT.name, compCT.name],
                                        msg=msg)                  
        
@@ -872,7 +871,6 @@ class ArcPlot(object):
             self.seq = seq
         
         elif len(shape) != len(self.seq):
-            print len(shape), len(self.seq)
             raise IndexError("Mapfile does not match length of sequence!")
         
         self.reactprofile = shape
@@ -892,13 +890,13 @@ class ArcPlot(object):
             self.readProfile(profilefile)
         
         else:
-            raise IOError('Unexpected dms profile format')
-        #else:
-        #    import plotTools
-        #    profile = plotTools.ReactivityProfile(profilefile)
-        #    profile.normalize(DMS=True)
-        #    self.reactprofile = profile.normprofile
-        
+            import plotTools
+            profile = plotTools.ReactivityProfile(profilefile)
+            profile.normalize(DMS=True)
+            self.reactprofile = profile.normprofile
+
+            if self.seq == '' or self.seq.count(' ') == len(self.seq):
+                self.seq = profile.sequence
 
         self.reactprofileType = 'DMS'
 
@@ -960,16 +958,18 @@ def parseArgs():
 
     prs = argparse.ArgumentParser()
     prs.add_argument("outputPDF",type=str, help="Name of the output PDF graphic")
-    prs.add_argument("--ct", type=str, help="Base CT file to plot")
+    prs.add_argument("--ct", type=str, help="Base CT file to plot. By default, the first (0th) structure is plotted. Alternative structures can be selected by passing ,# after the CT file name (e.g. --ct ctfile.ct,3)")
     prs.add_argument("--fasta", type=str, help="Fasta sequence file")
-    prs.add_argument("--refct", type=str, help="Reference CT to compare base ct against")
-    prs.add_argument("--pairprob", type=str, help="Pairing prob. file in dotplot format. By default, arcs are drawn for the following probability intervals: [0.03,0.1], [0.1,0.3], [0.3,0.8], [0.8,1.0]. These intervals can be modified by passing thresholds as comma-separated values. For example, --pairprob file.dp,0.03,0.1,0.3,0.8,1.0 specifies the default intervals. At most 4 intervals can be plotted, but fewer intervals are allowed (e.g. --pairprob file.dp,0.1,0.3,0.8,1.0 will plot 3 intervals).")
+    prs.add_argument("--refct", type=str, help="Reference CT to compare base ct against. By default the first (0th) structure is plotted. Alternative structures can be selected by passing ,# after the CT file name (e.g. --refct ctfile.ct,3)")
+    prs.add_argument("--probability", type=str, help="Pairing probability file in dotplot format. By default, arcs are drawn for the following probability intervals: [0.03,0.1], [0.1,0.3], [0.3,0.8], [0.8,1.0]. These intervals can be modified by passing thresholds as comma-separated values. For example, --prob file.dp,0.03,0.1,0.3,0.8,1.0 specifies the default intervals. At most 4 intervals can be plotted, but fewer intervals are allowed (e.g. --prob file.dp,0.1,0.3,0.8,1.0 will plot 3 intervals).")
     
     prs.add_argument("--ringz", type=str, help="Plot Z-scores from ringmapper correlation file. Default color thresholds are Z=1 and Z=5. Can be modified by passing thresholds as comma-separated values (e.g. --corrz corrs.txt,1,5)")
     
     prs.add_argument("--ringsig", type=str, help="Plot statistical significance from ringmapper file. Default color thresholds are [20,500]. Can be modified by passing thresholds as comma-separated values (e.g. --corrsig corrs.txt,20,500)")
 
     prs.add_argument("--pairmap", type=str, help="Plot pairmap signals from pairmap file. By default plot principal & minor correlations. Can plot all complementary correlations by passing ,all (e.g. --pairmap pairmap.txt,all)")
+
+    prs.add_argument("--compare_pairmap", type=str, help="Plot pairmap signals from second pairmap file. By default plot principal & minor correlations. Can plot all complementary correlations by passing ,all (e.g. --compare_pairmap pairmap.txt,all)")
 
 
     prs.add_argument("--ntshape", type=str, help="Color nucs by shape reactivty in provided shape/map file")  
@@ -985,6 +985,8 @@ def parseArgs():
     #prs.add_argument("--depthThresh", type=int,default=10000, help="Interaction depth threshold (Default=10,000)")
     prs.add_argument("--bound", type=str, help="comma separated bounds of region to plot (e.g. --bound 511,796)")
 
+    prs.add_argument("--filternc", action="store_true", help="filter out non-canonical pairs in ct")
+
     args = prs.parse_args()
  
     if args.refct and not args.ct:
@@ -995,18 +997,18 @@ def parseArgs():
 
 
 
-    # subparse the pairprob argument
-    args.pairprob_bins = None
-    if args.pairprob:
+    # subparse the prob argument
+    args.probability_bins = None
+    if args.probability:
         numplots += 1
 
-        spl = args.pairprob.split(',')
+        spl = args.probability.split(',')
         try:
             if len(spl) > 1:
-                args.pairprob_bins = map(float, spl[1:])
-                args.pairprob = spl[0]
+                args.prob_bins = map(float, spl[1:])
+                args.probability = spl[0]
         except:
-            raise TypeError('Incorrectly formatted --pairprob argument {}'.format(args.pairprob))
+            raise TypeError('Incorrectly formatted --probability argument {}'.format(args.probability))
     
     
 
@@ -1051,13 +1053,31 @@ def parseArgs():
         
 
     if numplots > 2:
-        exit('Too many plots! Please select at maximum 2 of [--ct, --pairprob, --ringz, --ringsig, --pairmap]')
+        exit('Too many plots! Please select at maximum 2 of [--ct, --probability, --ringz, --ringsig, --pairmap --compare_pairmap]')
 
 
     # subparse the bounds argument
     if args.bound:
         args.bound = map(int, args.bound.split(','))
  
+    
+    if args.ct:
+        spl = args.ct.split(',')
+        if len(spl)==1:
+            args.ctstructnum = 0
+        else:
+            args.ctstructnum = int(spl[1])
+            args.ct = spl[0]
+
+    
+    if args.refct:
+        spl = args.refct.split(',')
+        if len(spl)==1:
+            args.refctstructnum = 0
+        else:
+            args.refctstructnum = int(spl[1])
+            args.refct = spl[0]
+
 
     return args
 
@@ -1080,14 +1100,18 @@ if __name__=="__main__":
 
     if args.ct:
         if args.refct:
-            aplot.compareCTs( RNAtools.CT(args.refct), RNAtools.CT(args.ct), panel=panel)
+            aplot.compareCTs( RNAtools.CT(args.refct, structNum=args.refctstructnum, filterNC=args.filternc), 
+                              RNAtools.CT(args.ct, structNum=args.ctstructnum, filterNC=args.filternc), 
+                              panel=panel)
         else:
-            aplot.addCT( RNAtools.CT(args.ct, filterNC=False), panel=panel)
+            aplot.addCT( RNAtools.CT(args.ct, structNum=args.ctstructnum, filterNC=args.filternc), 
+                         panel=panel)
+
         panel *= -1
 
 
-    if args.pairprob:
-        aplot.addPairProb( RNAtools.DotPlot(args.pairprob), panel=panel, bins=args.pairprob_bins)
+    if args.probability:
+        aplot.addPairProb( RNAtools.DotPlot(args.probability), panel=panel, bins=args.prob_bins)
         panel *= -1
 
 
@@ -1106,6 +1130,13 @@ if __name__=="__main__":
         aplot.addPairMap( PairMap(args.pairmap), panel=panel, plotall=args.pairmap_all)
         panel *= -1
 
+
+    if args.compare_pairmap:
+        
+        from pmanalysis import PairMap
+        
+        aplot.addPairMap( PairMap(args.pairmap2), panel=panel, plotall=args.pairmap_all)
+        panel *= -1
 
 
 

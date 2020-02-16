@@ -77,7 +77,7 @@ class PairMap(object):
     #
     
 
-    def ppvsens_duplex(self, ctobj, ptype=1, exact=False, profile=None):
+    def ppvsens_duplex(self, ctobj, ptype=1, exact=False, profile=None, mask=False, verbal=False, printFP=False):
         """Compute ppv&sens from a duplex perspective relative to reference ct
 
         ptype = 1/2/3/0
@@ -91,8 +91,13 @@ class PairMap(object):
 
         profile = if provided, reactivity profile is used to define regions with 
                   no data that are then excluded from ppv/sens calcs
+        
+        mask = True will exclude masked regions in ctobj from ppv/sens calcs
+
         """
         
+        if mask:
+            print len(ctobj.mask), len(ctobj.mask)-sum(ctobj.mask)
 
         if exact:
             allowedoffset = 0
@@ -112,7 +117,18 @@ class PairMap(object):
         else:
             raise ValueError('ptype={} is not supported. Please select 1/2/3/0'.format(ptype))
         
-        predpairs = set([(c[0],c[1]) for c in corrlist])
+
+        predpairs = []
+        
+        for c in corrlist:
+            
+            pair = (c[0], c[1])
+            if not (mask and masked(pair, ctobj.mask, self.window)):
+                predpairs.append(pair)
+            elif verbal:
+                print 'Skipped {0}'.format(pair)
+
+        predpairs = set(predpairs)
 
         
         # for sensitivity calculation, get list of helices
@@ -121,8 +137,6 @@ class PairMap(object):
         # need to shift helix indices to match window-shifting in PairMap
         shifted_helices = {}
         knowndup = []
-        
-
         for h,pairs in helices.items():
             
             temphelix = []
@@ -131,6 +145,10 @@ class PairMap(object):
                 
                 shiftedpair = (p[0], p[1]-self.window+1)
                 
+                # skip if masked
+                if mask and masked(shiftedpair, ctobj.mask, self.window):
+                    continue
+
                 if profile is None or hasdata(shiftedpair, profile, self.window):
                     temphelix.append(shiftedpair)
 
@@ -139,43 +157,60 @@ class PairMap(object):
             # for calculations, add in "dummies" that starts and end 1 bp upstream/downstream
             if len(pairs) < self.window:
                 
-                #print 'Warning! {0}-bp helix included in calculation; pairs={1}'.format(len(helices[h]), helices[h])
-
                 shiftedpair = (pairs[0][0]-1, pairs[0][1]-self.window+2)
-                if profile is None or hasdata(shiftedpair, profile, self.window):
+                # skip if masked
+                if mask and masked(shiftedpair, ctobj.mask, self.window):
+                    pass
+                elif profile is None or hasdata(shiftedpair, profile, self.window):
                     temphelix.append(shiftedpair)
 
                 shiftedpair = (pairs[0][0], pairs[0][1]-self.window+1)
-                if profile is None or hasdata(shiftedpair, profile, self.window):
+                if mask and masked(shiftedpair, ctobj.mask, self.window):
+                    pass
+                elif profile is None or hasdata(shiftedpair, profile, self.window):
                     temphelix.append(shiftedpair)
-
             
+
             if len(temphelix) > 0:
                 knowndup.extend( temphelix )
                 shifted_helices[h] = temphelix
-            #else:
-            #    print "helix starting at pair {0} skipped because of no data".format(pairs[0])
+                if verbal:
+                    print h, temphelix
+            elif verbal:
+                print h, 'skipped', pairs
+            #    print "WARNING: Helix starting at pair {0} skipped because of no data".format(pairs[0])
 
-
+        
         knowndup = set(knowndup)
 
         # compute sens
-        sens = set()
+        senset = set()
         for h in shifted_helices:
             for c in shifted_helices[h]:
                 if c in predpairs or nonexactMatch(c, predpairs, allowedoffset):
-                    sens.add(h)
+                    senset.add(h)
                     break
 
         # compute ppv
-        ppv = set()
+        ppvset = set()
         for c in sorted(predpairs):
             if c in knowndup or nonexactMatch(c, knowndup, allowedoffset):
-                ppv.add(c)
+                ppvset.add(c)
+            elif printFP:
+                print('FP: {}'.format(c))    
         
-        #print len(ppv), len(predpairs), len(sens), len(shifted_helices)
 
-        return float(len(ppv))/len(predpairs), float(len(sens))/len(shifted_helices)
+        if len(predpairs)==0:
+            ppv = 0.0
+        else:
+            ppv = float(len(ppvset))/len(predpairs)
+        
+        if len(shifted_helices)==0:
+            sens = 0.0
+        else:
+            sens = float(len(senset))/len(shifted_helices)
+
+        return ppv, sens
         
 
                    
@@ -211,8 +246,20 @@ def hasdata(pair, profile, window):
         return True
 
 
-
+def masked(pair, mask, window):
     
+    s1 = sum(mask[pair[0]-1:pair[0]-1+window])
+    s2 = sum(mask[pair[1]-1:pair[1]-1+window])
+        
+    if max(s1,s2) > window/2:
+        return True
+    else:
+        return False
+        
+        
+    
+
+
 
 if __name__ == '__main__':
     
@@ -224,21 +271,26 @@ if __name__ == '__main__':
     prs.add_argument('pmfile', help='path of pair mapper file')
     prs.add_argument('ctfile', help='path of reference ct file')
     prs.add_argument('--dms', help='path of dms reactivity file')
+    prs.add_argument('--mask', action='store_true',help='Mask out CT-specified regions when computing ppv/sens')
+    prs.add_argument('--verbal', action='store_true',help='Print each correlation and its status')
         
     args = prs.parse_args()
 
 
     pm = PairMap(args.pmfile)   
-    ct = RNAtools.CT(args.ctfile, filterNC=True)
-
-
+    ct = RNAtools.CT(args.ctfile, filterNC=True, filterSingle=True)
+    
     if args.dms:
         profile,seq = RNAtools.readSHAPE(args.dms)
+        if len(profile)!=len(ct.ct):
+            raise IndexError('Profile file not the same length as the CT!')
     else:
         profile = None
     
     
-    print pm.ppvsens_duplex(ct, ptype=1, exact=False, profile=profile)
+    p,s = pm.ppvsens_duplex(ct, ptype=1, exact=False, profile=profile, mask=args.mask, verbal=args.verbal)
+    print "PPV={0:.0f}  Sens={1:.0f}".format(p*100, s*100)
+
     #print pm.ppvsens_duplex(ct, ptype=1, exact=True, profile=profile)
 
 

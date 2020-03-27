@@ -360,6 +360,7 @@ class ArcPlot(object):
         
         figWidth = (bounds[1]-bounds[0])*scaleFactor
         figHeight = 2*max(self.height)*scaleFactor
+        
 
         fig = plot.figure( figsize=(figWidth, figHeight)) # 500*scaleFactor
         fig.subplots_adjust(hspace=0.0)
@@ -589,6 +590,10 @@ class ArcPlot(object):
                     allcorrs.append( ( int(spl[0]), int(spl[1]), float(spl[3])*val ) )
 
 
+        if len(allcorrs)==0:
+            print('WARNING: No RINGs passing filter in {}'.format(ringfile))
+
+
         for i in range(len(bins)-1):
             
             corrs = [c for c in allcorrs if bins[i]<c[2]<=bins[i+1]]
@@ -694,11 +699,18 @@ class ArcPlot(object):
             self.botlegend = ArcLegend(title=t, colors=c, labels=l) 
        
 
+
+
+
     def addPairMap(self, pmobj, panel=1, plotall=False):
         """plot pairs output by pairmapper
         plotall = True will plot all complementary correlations (not just 1&2)
         """
-        
+
+        if len(pmobj.primary)==0 and len(pmobj.secondary)==0:
+            print('WARNING: No PAIR-MaP correlations in {}'.format(pmobj.sourcename))
+
+
         def getZ(corrlist):
             return [(x[0], x[1], x[3]) for x in corrlist]
         
@@ -874,6 +886,11 @@ class ArcPlot(object):
             raise IndexError("Mapfile does not match length of sequence!")
         
         self.reactprofile = shape
+        
+        # need to give the plot some height if no other things added
+        if max(self.height)==0:
+            self.height[1] = max(5, min(10, len(self.reactprofile)/50.))
+
 
 
     def readDMSProfile(self, profilefile):
@@ -899,6 +916,10 @@ class ArcPlot(object):
                 self.seq = profile.sequence
 
         self.reactprofileType = 'DMS'
+        
+        # need to give the plot some height if no other things added
+        if max(self.height)==0:
+            self.height[1] = max(5, min(10, len(self.reactprofile)/50.))
 
 
         
@@ -1157,7 +1178,6 @@ if __name__=="__main__":
     if args.showGrid:
         aplot.grid = True
 
-   
     aplot.writePlot( args.outputPDF, bounds = args.bound, msg=msg)
 
 

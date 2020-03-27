@@ -27,6 +27,8 @@ class PairMap(object):
 
     def readPairFile(self, corrfile):
         
+        self.sourcename = corrfile
+
         self.primary = []
         self.secondary = []
         self.remainder = []

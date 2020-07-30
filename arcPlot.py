@@ -48,6 +48,13 @@ class ArcLegend(object):
         self.labels = labels
         self.msg = msg
     
+    
+    def append(self, t, colors, labels):
+        
+        self.title+=' & '+t
+        self.colors.extend(colors)
+        self.labels.extend(labels)
+
 
     def drawLegend(self, ax, xbound, ybound):
         """Draw legend on axes, computing location based on axes bounds
@@ -541,12 +548,21 @@ class ArcPlot(object):
 
 
     
-    def addRings(self, ringfile, metric='z', panel=1, bins=None):
+    def addRings(self, ringfile, metric='z', panel=1, bins=None, contactfilter=(None,None),
+                 filterneg=False):
         """Add arcs from ringmapper file
         metric  = z or sig
         """
         
+        if contactfilter[0]:
+            print("Performing contact filtering with distance={}".format(contactfilter[0]))
+        
+        if filterneg:
+            print("Filtering out negative correlations")
+
+        
         colors = [(44,123,182), (44,123,182), (171,217,233), (255,255,255), (253,174,97), (215,25,28), (215,25,28)]
+
         colors = [tuple([y/255.0 for y in x]) for x in colors]
         
         alpha = [1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
@@ -580,9 +596,17 @@ class ArcPlot(object):
 
             for line in inp:
                 spl = line.split()
+                i = int(spl[0])
+                j = int(spl[1])
+
+                if contactfilter[0] and contactfilter[1].contactDistance(i,j) <= contactfilter[0]:
+                    continue
                 
+                if filterneg and int(spl[3])<0:
+                    continue
+
                 if metric == 'z':
-                    val = (float(spl[5])+float(spl[6]))/2
+                    val = float(spl[4])
                 else:
                     val = float(spl[2])
 
@@ -611,16 +635,25 @@ class ArcPlot(object):
         
         # Add the legend
         t = 'RING {0} win={1} {2}'.format(mname, window, metric.upper())
-        c = (colors[1], colors[2], colors[4], colors[5])
-        l = ('<={}'.format(bins[1]), '<{}'.format(bins[2]), 
-             '>{}'.format(bins[4]), '>={}'.format(bins[5]))
-        
-        if panel>0:
-            self.toplegend = ArcLegend(title=t, colors=c, labels=l)
+        if filterneg:
+            c = (colors[4], colors[5])
+            l = ('>{}'.format(bins[4]), '>={}'.format(bins[5]))
         else:
-            self.botlegend = ArcLegend(title=t, colors=c, labels=l) 
-       
+            c = (colors[1], colors[2], colors[4], colors[5])
+            l = ('<={}'.format(bins[1]), '<{}'.format(bins[2]), 
+                 '>{}'.format(bins[4]), '>={}'.format(bins[5]))
+        
 
+        if panel>0:
+            if self.toplegend is not None:
+                self.toplegend.append(t, c, l)
+            else:
+                self.toplegend = ArcLegend(title=t, colors=c, labels=l)
+        else:
+            if self.botlegend is not None:
+                self.botlegend.append(t, c, l)
+            else:
+                self.botlegend = ArcLegend(title=t, colors=c, labels=l)
 
 
 
@@ -741,10 +774,15 @@ class ArcPlot(object):
             l = l[:-1]
         
         if panel>0:
-            self.toplegend = ArcLegend(title='PairMap', colors=c, labels=l)
+            if self.toplegend is not None:
+                self.toplegend.append('PairMap', c, l)
+            else:
+                self.toplegend = ArcLegend(title='PairMap', colors=c, labels=l)
         else:
-            self.botlegend = ArcLegend(title='PairMap', colors=c, labels=l) 
- 
+            if self.botlegend is not None:
+                self.botlegend.append('PairMap', c, l)
+            else:
+                self.botlegend = ArcLegend(title='PairMap', colors=c, labels=l)
 
 
 
@@ -1007,15 +1045,19 @@ def parseArgs():
     prs.add_argument("--bound", type=str, help="comma separated bounds of region to plot (e.g. --bound 511,796)")
 
     prs.add_argument("--filternc", action="store_true", help="filter out non-canonical pairs in ct")
+    
+    prs.add_argument("--contactfilter", type=int, help="filter rings by specified contact distance (int value)")
+    
+    prs.add_argument("--filternegcorrs", action="store_true", help='filter out negative correlations')  
 
     args = prs.parse_args()
  
+
     if args.refct and not args.ct:
         exit("--refct is invalid without --ct")
 
 
     numplots = int(args.ct is not None)
-
 
 
     # subparse the prob argument
@@ -1071,17 +1113,28 @@ def parseArgs():
             args.pairmap = spl[0]
         else:
             raise TypeError('Incorrectly formatted --pairmap argument {}'.format(args.pairmap))
-        
+    
 
-    if numplots > 2:
+    args.ringpairsuper = False
+    if args.pairmap and (args.ringz or args.ringsig) and args.ct:
+        args.ringpairsuper = True
+
+    if numplots > 2 and not args.ringpairsuper:
         exit('Too many plots! Please select at maximum 2 of [--ct, --probability, --ringz, --ringsig, --pairmap --compare_pairmap]')
 
+
+    if args.contactfilter and not args.ct:
+        exit('Cannot perform contact filtering without --ct file')
+
+    if args.ringpairsuper and args.contactfilter is None:
+        args.contactfilter = 10
 
     # subparse the bounds argument
     if args.bound:
         args.bound = map(int, args.bound.split(','))
  
     
+    # subparse the ct arguments
     if args.ct:
         spl = args.ct.split(',')
         if len(spl)==1:
@@ -1090,7 +1143,6 @@ def parseArgs():
             args.ctstructnum = int(spl[1])
             args.ct = spl[0]
 
-    
     if args.refct:
         spl = args.refct.split(',')
         if len(spl)==1:
@@ -1111,7 +1163,7 @@ if __name__=="__main__":
     args = parseArgs()
     
     msg = None
-
+    CT1=None
     
     aplot = ArcPlot(title = args.title, fasta=args.fasta)
 
@@ -1120,13 +1172,15 @@ if __name__=="__main__":
         panel = -1
 
     if args.ct:
+        
+        CT1 = RNAtools.CT(args.ct, structNum=args.ctstructnum, filterNC=args.filternc)
+
         if args.refct:
-            aplot.compareCTs( RNAtools.CT(args.refct, structNum=args.refctstructnum, filterNC=args.filternc), 
-                              RNAtools.CT(args.ct, structNum=args.ctstructnum, filterNC=args.filternc), 
-                              panel=panel)
+            refCT = RNAtools.CT(args.refct, structNum=args.refctstructnum, filterNC=args.filternc)
+            aplot.compareCTs( refCT, CT1, panel=panel)
+        
         else:
-            aplot.addCT( RNAtools.CT(args.ct, structNum=args.ctstructnum, filterNC=args.filternc), 
-                         panel=panel)
+            aplot.addCT( CT1, panel=panel)
 
         panel *= -1
 
@@ -1136,22 +1190,27 @@ if __name__=="__main__":
         panel *= -1
 
 
-    if args.ringz:
-        aplot.addRings(args.ringz, panel=panel, metric='z', bins=args.ringz_bins)
-        panel *= -1
-    
-    if args.ringsig:
-        aplot.addRings(args.ringsig, panel=panel, metric='sig', bins=args.ringsig_bins)
-        panel *= -1
-
     if args.pairmap:
 
         from pmanalysis import PairMap
         
         aplot.addPairMap( PairMap(args.pairmap), panel=panel, plotall=args.pairmap_all)
+
+        if not args.ringpairsuper:
+            panel *= -1
+
+
+    if args.ringz:
+        aplot.addRings(args.ringz, panel=panel, metric='z', bins=args.ringz_bins,
+                       contactfilter=(args.contactfilter, CT1), filterneg=args.filternegcorrs)
+        panel *= -1
+    
+    if args.ringsig:
+        aplot.addRings(args.ringsig, panel=panel, metric='sig', bins=args.ringsig_bins,
+                       contactfilter=(args.contactfilter, CT1), filterneg=args.filternegcorrs)
         panel *= -1
 
-
+    
     if args.compare_pairmap:
         
         from pmanalysis import PairMap

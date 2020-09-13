@@ -51,7 +51,11 @@ class ArcLegend(object):
     
     def append(self, t, colors, labels):
         
-        self.title+=' & '+t
+        if self.title is not None and t is not None:
+            self.title+=' & '+t
+        elif self.title is None:
+            self.title = t
+
         self.colors.extend(colors)
         self.labels.extend(labels)
 

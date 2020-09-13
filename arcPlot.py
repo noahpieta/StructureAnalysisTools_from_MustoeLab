@@ -1215,7 +1215,7 @@ if __name__=="__main__":
         
         from pmanalysis import PairMap
         
-        aplot.addPairMap( PairMap(args.pairmap2), panel=panel, plotall=args.pairmap_all)
+        aplot.addPairMap( PairMap(args.compare_pairmap), panel=panel, plotall=args.pairmap_all)
         panel *= -1
 
 

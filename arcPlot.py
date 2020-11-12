@@ -269,7 +269,7 @@ class ArcPlot(object):
 
 
 
-    def plotProfile(self, ax, colthresh = (-10, 0.4, 0.85, 3), heightscale=None):
+    def plotProfile(self, ax, bounds=None, colthresh = (-10, 0.4, 0.85, 3), heightscale=None):
         """Add a reactivity profile to the axes (self.reactprofile needs to be set)
         
         ax          = axes object to add plot. Expected to be top axis
@@ -295,6 +295,10 @@ class ArcPlot(object):
            heightscale = min(max(self.height)/4., heightscale)
 
         for x,y in enumerate(self.reactprofile):
+
+            if bounds is not None and x<bounds[0] or x>bounds[1]:
+                continue
+
             if y is None or y != y or y<colthresh[0]:
                 xvals[0].append(x+1)
                 yvals[0].append(0.6*heightscale+self.adjust)
@@ -356,7 +360,7 @@ class ArcPlot(object):
 
 
     def writePlot(self, outPath="arcs.pdf", bounds=None, write=True,
-                  msg=None, msg_pos=(0,1), msg_kwargs={}):
+                  msg=None, msg_pos=(0,1), msg_kwargs={}, **args):
         
         cutbounds = True
         if bounds is None:
@@ -499,7 +503,7 @@ class ArcPlot(object):
 
 
         if self.reactprofile is not None:
-            self.plotProfile(axT)
+            self.plotProfile(axT, bounds, **args)
 
         if msg is not None:
             axT.text(msg_pos[0], msg_pos[1], msg, transform=axT.transAxes, **msg_kwargs)
@@ -566,6 +570,9 @@ class ArcPlot(object):
 
         
         colors = [(44,123,182), (44,123,182), (171,217,233), (255,255,255), (253,174,97), (215,25,28), (215,25,28)]
+        #colors = [(176,70,147), (176,70,147), (229,203,228), (255,255,255), (253,174,97), (215,25,28), (215,25,28)]
+
+
 
         colors = [tuple([y/255.0 for y in x]) for x in colors]
         
@@ -1131,7 +1138,7 @@ def parseArgs():
         exit('Cannot perform contact filtering without --ct file')
 
     if args.ringpairsuper and args.contactfilter is None:
-        args.contactfilter = 10
+        args.contactfilter = 20
 
     # subparse the bounds argument
     if args.bound:
@@ -1184,7 +1191,11 @@ if __name__=="__main__":
             aplot.compareCTs( refCT, CT1, panel=panel)
         
         else:
-            aplot.addCT( CT1, panel=panel)
+            alpha = 0.7
+            if args.ringpairsuper:
+                alpha=0.2
+            
+            aplot.addCT( CT1, panel=panel, alpha=alpha)
 
         panel *= -1
 
@@ -1198,11 +1209,13 @@ if __name__=="__main__":
 
         from pmanalysis import PairMap
         
-        aplot.addPairMap( PairMap(args.pairmap), panel=panel, plotall=args.pairmap_all)
+        if args.ringpairsuper:
+            aplot.addPairMap( PairMap(args.pairmap), panel=1, plotall=args.pairmap_all)
 
-        if not args.ringpairsuper:
+        else:
+            aplot.addPairMap( PairMap(args.pairmap), panel=panel, plotall=args.pairmap_all)
             panel *= -1
-
+        
 
     if args.ringz:
         aplot.addRings(args.ringz, panel=panel, metric='z', bins=args.ringz_bins,

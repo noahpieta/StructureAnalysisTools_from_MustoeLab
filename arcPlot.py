@@ -1079,7 +1079,7 @@ def parseArgs():
         spl = args.probability.split(',')
         try:
             if len(spl) > 1:
-                args.prob_bins = map(float, spl[1:])
+                args.probability_bins = map(float, spl[1:])
                 args.probability = spl[0]
         except:
             raise TypeError('Incorrectly formatted --probability argument {}'.format(args.probability))
@@ -1201,7 +1201,7 @@ if __name__=="__main__":
 
 
     if args.probability:
-        aplot.addPairProb( RNAtools.DotPlot(args.probability), panel=panel, bins=args.prob_bins)
+        aplot.addPairProb( RNAtools.DotPlot(args.probability), panel=panel, bins=args.probability_bins)
         panel *= -1
 
 

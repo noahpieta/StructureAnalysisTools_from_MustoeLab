@@ -100,8 +100,8 @@ class ArcLegend(object):
         for i, c in enumerate(self.colors):
 
             # self.colors is a list of dict patch specifications, so c is a dict
-            ax.add_patch(patches.Rectangle( (xloc, yloc), 1.5, 1.5, color=c ) )
-            
+            ax.add_patch(patches.Rectangle( (xloc, yloc), 1.5, 1.5, color=c, clip_on=False ) )
+
             # now add label
             ax.text(xloc+2.5, yloc, self.labels[i], horizontalalignment='left',
                     size="8",weight="normal", color="black")
@@ -685,6 +685,7 @@ class ArcPlot(object):
 
 
         if bins is None:
+            #bins = [0.01, 0.1, 0.5, 0.9, 1.0]
             bins = [0.03, 0.1, 0.3, 0.8, 1.0]
             colors = refcolors
             alpha = refalpha

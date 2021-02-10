@@ -586,7 +586,7 @@ class ArcPlot(object):
                 bins = [-1e10, -bins[1], -bins[0], 0, bins[0], bins[1], 1e10]
         else:
             if bins is None:
-                bins = [-1e10, -500, -20, 0, 20, 500, 1e10]
+                bins = [-1e10, -100, -20, 0, 20, 100, 1e10]
             else:
                 bins = [-1e-10, -bins[1], -bins[0], 0, bins[0], bins[1], 1e10]
 

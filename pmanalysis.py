@@ -272,6 +272,7 @@ if __name__ == '__main__':
     
     prs.add_argument('pmfile', help='path of pair mapper file')
     prs.add_argument('ctfile', help='path of reference ct file')
+    prs.add_argument('--ptype', default=1, type=int, help='Which correlations to compute Sens/PPV for. Options are 1 (primary only;default), 2 (secondary only), 3 (primary and secondary), 0 (everything; not recommended)')
     prs.add_argument('--dms', help='path of dms reactivity file')
     prs.add_argument('--mask', action='store_true',help='Mask out CT-specified regions when computing ppv/sens')
     prs.add_argument('--verbal', action='store_true',help='Print each correlation and its status')
@@ -290,7 +291,7 @@ if __name__ == '__main__':
         profile = None
     
     
-    p,s = pm.ppvsens_duplex(ct, ptype=1, exact=False, profile=profile, mask=args.mask, verbal=args.verbal)
+    p,s = pm.ppvsens_duplex(ct, ptype=args.ptype, exact=False, profile=profile, mask=args.mask, verbal=args.verbal)
     print "PPV={0:.0f}  Sens={1:.0f}".format(p*100, s*100)
 
     #print pm.ppvsens_duplex(ct, ptype=1, exact=True, profile=profile)

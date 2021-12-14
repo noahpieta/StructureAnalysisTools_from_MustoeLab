@@ -957,8 +957,8 @@ class ArcPlot(object):
             self.readProfile(profilefile)
         
         else:
-            import plotTools
-            profile = plotTools.ReactivityProfile(profilefile)
+            import ReactivityProfile
+            profile = ReactivityProfile.ReactivityProfile(profilefile)
             profile.normalize(DMS=True)
             self.reactprofile = profile.normprofile
 

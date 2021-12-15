@@ -474,9 +474,18 @@ class ReactivityProfile(object):
                               
 
 
-    def normalize(self, DMS=False, byNT=False, **kwargs):
-        """normalize the profile; overwrites values in normprofile"""
+    def normalize(self, DMS=False, byNT=False, normfactors = None, errfactors = None, **kwargs):
+        """normalize the profile; overwrites values in normprofile
+        By default, normalization is done in a sequence agnostic way (SHAPE default)
+        If byNT, nts are normalized independently
+        If DMS, nts are normalized w/ A+C and U+G on the same scale
+        If normfactors is passed, use these precomputed normalization factors
+           (dict of w/ A,G,U,C as keys and norm factors as values)
+        If normfactors is passed, use errfactors (optional)
+        """
+        
 
+        # determine whether subprofile exists; if so, use this as basis for normalization
         if self.subprofile is not None:
             name = 'sub'
         else:
@@ -485,79 +494,109 @@ class ReactivityProfile(object):
 
         prof,err = self.profile(name, True)
         
-        # initialize the profile and error array
-        nprof = np.array(prof)
+        # initialize the profile
+        normprof = np.array(prof)
         
-
+        
+        # initialize the error arrays
         with np.errstate(invalid='ignore'):
             if err is not None:
-                nerr = np.zeros(err.shape)
+                normerror = np.zeros(err.shape)
                 mask = prof > 0
-                nerr[mask] = (err[mask]/prof[mask])**2
+                normerror[mask] = (err[mask]/prof[mask])**2
             else:
-                nerr = None
+                normerror = None
         
+        
+        # compute the normalization factors
+        if normfactors is None:
+            
+            normfactors = {}
+            errfactors = {}
 
-        normfactors = {}
+            if byNT:
+                for i in ntorder:
+                    nfac, nerr = self.normMethod(self.reactivityByNt(nts=i, name=name))
+                    normfactors[i] = nfac
+                    errfactors[i] = nerr
 
-        if byNT:
+            elif DMS:
+                mask = (self.sequence == 'A') | (self.sequence=='C')
+                nfac, nerr = self.norm90( normprof[mask] )
+                for i in ('A','C'):
+                    normfactors[i] = nfac
+                    errfactors[i] = nerr
+
+                mask = (self.sequence == 'G') | (self.sequence=='U')
+                nfac, nerr = self.norm90( normprof[mask] )
+                for i in ('G','U'):
+                    normfactors[i] = nfac
+                    errfactors[i] = nerr
+
+            else:
+                nfac, nerr = self.normMethod(normprof)
+                for i in ntorder:
+                    normfactors[i] = nfac
+                    errfactors[i] = nerr
+                
+        
+        #normalize the data
+        for i in ntorder:
+            mask = (self.sequence == i)
+            normprof[mask] /= normfactors[i]
+
+        self.normprofile = normprof
+
+        
+        # compute errors
+        if normerror is not None and errfactors is not None:
 
             for i in ntorder:
-                nfac, normerr = self.normMethod(self.reactivityByNt(nts=i, name=name))
+                mask = (self.sequence == i)
                 
-                seq = self.sequence==i
-                nprof[seq] /= nfac
-                
-                if nerr is not None:
-                    nerr[seq] += (normerr/nfac)**2
-                    nerr[seq] = np.abs(nprof[seq])*np.sqrt(nerr[seq]) 
-                
-                normfactors[i] = nfac
+                normerror[mask] += (errfactors[i]/normfactors[i])**2
+                normerror[mask] = np.abs( normprof[mask] ) * np.sqrt( normerror[mask] )
 
+            self.normerror = nerr
 
-        elif DMS:
-
-            acmask = (self.sequence == 'A') | (self.sequence=='C')
-            ac_nfac, ac_nerr = self.norm90( nprof[acmask] )
-
-            gumask = (self.sequence == 'G') | (self.sequence=='U')
-            gu_nfac, gu_nerr = self.norm90( nprof[gumask] )
-
-            nprof[acmask] /= ac_nfac
-            nprof[gumask] /= gu_nfac
-            
-            if nerr is not None:
-                nerr[acmask] += (ac_nerr/ac_nfac)**2
-                nerr[acmask] = np.abs(nprof[acmask])*np.sqrt(nerr[acmask]) 
-                nerr[gumask] += (gu_nerr/gu_nfac)**2
-                nerr[gumask] = np.abs(nprof[gumask])*np.sqrt(nerr[gumask]) 
-            
-            normfactors['G'] = gu_nfac
-            normfactors['U'] = gu_nfac
-            normfactors['A'] = ac_nfac
-            normfactors['C'] = ac_nfac
-
-
-        else:
-            # compute the normprofile
-            normfac, normerr = self.normMethod(prof)
-            nprof /= normfac
-
-            # compute the stderr, figuring in the fact that normalization has some error
-            if nerr is not None:
-                nerr += (normerr/normfac)**2
-                nerr = np.abs(nprof)*np.sqrt(nerr)
-            
-            normfactors['G'] = normfac
-            normfactors['U'] = normfac
-            normfactors['A'] = normfac
-            normfactors['C'] = normfac
-
-
-        self.normprofile = nprof
-        self.normerror = nerr
 
         return normfactors
+
+    
+
+    def normalize_external(self, profilefiles = [], profileobjs = [], **kwargs):
+        """normalize reactivities using a set of other data to compute normfactors
+        profilefiles = list of profile.txt files to normalize against
+        profileobjs = list of profile objects to normalize against
+        """
+
+        combined = ReactivityProfile()
+        
+        # need to manually set dtype so appending below works properly
+        combined.subprofile = np.array([], dtype=float)
+        combined.sequence = np.array([])
+
+        for f in profilefiles:
+            prof = ReactivityProfile(f)
+            combined.subprofile = np.append(combined.subprofile, prof.subprofile)
+            combined.sequence = np.append(combined.sequence, prof.sequence)
+
+        
+        for prof in profileobjs:
+            
+            combined.subprofile = np.append(combined.subprofile, prof.subprofile)
+            combined.sequence = np.append(combined.sequence, prof.sequence)
+
+        if len(combined.subprofile)==0:
+            raise AttributeError('No external reactivity data provided')
+
+        nfacs = combined.normalize(**kwargs)
+
+        self.normalize(normfactors=nfacs)
+
+        return nfacs
+
+            
 
 
 
@@ -687,6 +726,7 @@ class ReactivityProfile(object):
         data4 = data3[data3>p90]
 
         return np.mean(data4), np.std(data4)/np.sqrt(len(data4))
+
 
     def zeroNeg(self, name=None):
         """ zero out negative values in the profile name"""

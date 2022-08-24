@@ -721,10 +721,10 @@ class ArcPlot(object):
                 pos = ( elem['pair'] == p[1]-1) # make mask
                 strength.append(elem['log10'][pos][0]) # get value
 
-            strengthzip = zip(cutpairs, strength)
+            strengthzip = list(zip(cutpairs, strength))
             strengthzip.sort(key=lambda x: x[1], reverse=True)
 
-            cutpairs, strength = zip(*strengthzip)
+            cutpairs, strength = list(zip(*strengthzip))
             
             # iterate through sorted pairs and draw arcs
             for pindex, pair in enumerate(cutpairs):

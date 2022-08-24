@@ -138,7 +138,7 @@ class CT(object):
             sys.exit("Structure %d was not found in the ct file" % structNum)
         
         if 'T' in seq:
-            print "Note: T nucleotides have been recoded as U"
+            print("Note: T nucleotides have been recoded as U")
             seq = ['U' if x=='T' else x for x in seq]
         
         # check consistency!
@@ -227,7 +227,7 @@ class CT(object):
 
         #handle empty ct object case
         if not self.ct:
-            print "empty ct object. Nothing to write"
+            print("empty ct object. Nothing to write")
             return
         
         w = open(fOUT,'w')
@@ -353,7 +353,7 @@ class CT(object):
 
 
         length = len(self.seq)
-        self.num = range(1,length+1)
+        self.num = list(range(1,length+1))
         
 
         #give it a name if it has one
@@ -368,10 +368,10 @@ class CT(object):
         
         for i,j in pairs:
             if self.ct[i-1]!=0:
-                print 'Warning: conflicting pairs, (%s - %s) : (%s - %s)' % (str(i),str(j),str(self.ct[i-1]),str(i))
+                print('Warning: conflicting pairs, (%s - %s) : (%s - %s)' % (str(i),str(j),str(self.ct[i-1]),str(i)))
                 if skipConflicting: continue
             if self.ct[j-1]!=0:
-                print 'Warning: conflicting pairs, (%s - %s) : (%s - %s)' % (str(i),str(j),str(j),str(self.ct[j-1]))
+                print('Warning: conflicting pairs, (%s - %s) : (%s - %s)' % (str(i),str(j),str(j),str(self.ct[j-1])))
                 if skipConflicting: continue
             self.ct[i-1]=j
             self.ct[j-1]=i
@@ -463,7 +463,7 @@ class CT(object):
         
         out = CT()
         out.seq = self.seq[sel]
-        out.num = range(1,numnts+1)
+        out.num = list(range(1,numnts+1))
         out.name = self.name + '_cut_'+str(start)+'_'+str(end)
         
         out.ct = []
@@ -605,7 +605,7 @@ class CT(object):
         
         #error out if nucleotide out of range
         if max(i,j) > len(self.ct):
-            print 'Error!, nucleotide {0} out of range!'.format(max(i,j)+1)
+            print('Error!, nucleotide {0} out of range!'.format(max(i,j)+1))
             return
         
         #i must always be less than j, correct for this
@@ -772,7 +772,7 @@ class CT(object):
 
         rna = self.copy()
         # fill in 1,1 mismatch, 2,2 mismatch
-        for i in xrange(len(rna.ct)-3):
+        for i in range(len(rna.ct)-3):
             if rna.ct[i+1] == 0:
                 if rna.ct[i] - rna.ct[i+2] == 2:
                     rna.ct[i+1] = rna.ct[i] - 1
@@ -818,8 +818,8 @@ class CT(object):
         # append them to a list if they have it.
         overlaps = [] # stores the helix number
         
-        for i in xrange(heNum):
-            for j in xrange(i+1,heNum):
+        for i in range(heNum):
+            for j in range(i+1,heNum):
                 if checkOverlap(helices[i],helices[j]):
                     overlaps.append((i,j))
         
@@ -840,7 +840,7 @@ class CT(object):
             crossbps[j] += len(helices[i])
         
         # convert to list and sort
-        crossbps = crossbps.items()
+        crossbps = list(crossbps.items())
         
         # first sort list by helix number -- i.e. 5' to 3'
         crossbps.sort(key = lambda x: x[0])
@@ -870,7 +870,7 @@ class CT(object):
         """
         self.shape, seq = readSHAPE(fIN)
         if len(self.shape)< len(self.ct):
-            print "warning! shape array is smaller than the CT range"
+            print("warning! shape array is smaller than the CT range")
        
      
     def writeSHAPE(self, fOUT):
@@ -880,7 +880,7 @@ class CT(object):
         try:
             writeSHAPE(self.shape, fOUT)
         except:
-            print "No SHAPE data present"
+            print("No SHAPE data present")
             return
 
 
@@ -1014,7 +1014,7 @@ def padCT(targetCT, referenceCT,giveAlignment=False):
             maxScore += 1
     # handle the exception when target and reference do not match
     if maxScore != 1:
-        print 'reference and target do not match <EXIT>'
+        print('reference and target do not match <EXIT>')
         sys.exit()
     
     #create the renumbered ct to fit within the reference
@@ -1324,7 +1324,7 @@ class DotPlot:
             
             
             if printOut:
-                print nt['nt'], ntsum
+                print(nt['nt'], ntsum)
                 
             
             if toFile:
@@ -1347,7 +1347,7 @@ class DotPlot:
         sarr = np.zeros(self.length)
         carr = np.zeros(self.length)
 
-        for i in xrange(region[0]-1, region[1]):
+        for i in range(region[0]-1, region[1]):
             
             snt = self.partfun[i]
             cnt = comp.partfun[i]
@@ -1387,7 +1387,7 @@ class DotPlot:
         unfold = 0
         
         # shift each by -1 since want to convert to 0-based index, and then +1 to region[1]
-        for i in xrange(region[0]-1, region[1]):
+        for i in range(region[0]-1, region[1]):
             
             nt = self.partfun[i]
             seqi = self.sequence[i]
@@ -1403,7 +1403,7 @@ class DotPlot:
                 try:
                     eij = bpenergy[seqi+seqj]
                 except KeyError:
-                    print seqi, seqj, i, j
+                    print(seqi, seqj, i, j)
                     eij=0
                 
                 # this is pij * Gij
@@ -1463,7 +1463,7 @@ class DotPlot:
         
         # if a reference structure is given, merge pairs to it first
         if struct:
-            for pair in xrange(1,len(struct.ct)-1):
+            for pair in range(1,len(struct.ct)-1):
                 # define the base pairs
                 pair_i = pair+1
                 pair_j = struct.ct[pair]

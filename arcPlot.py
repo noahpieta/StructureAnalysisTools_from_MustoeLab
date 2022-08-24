@@ -284,15 +284,19 @@ class ArcPlot(object):
         
         # check to see if DMS and colthresh defaults not overridden
         if self.reactprofileType == 'DMS' and colthresh == (-10,0.4,0.85,3):
-            colthresh = (-10, 0.2, 0.5, 2)
+            colthresh = (-10, 0.15, 0.4, 1)
             
 
         xvals = [ [] for i in range(4) ]
         yvals = [ [] for i in range(4) ]
         
         if heightscale is None:
-           heightscale = max(4, min(10, len(self.reactprofile)/50.))
-           heightscale = min(max(self.height)/4., heightscale)
+            heightscale = max(4, min(10, len(self.reactprofile)/50.))
+            heightscale = min(max(self.height)/4., heightscale)
+            
+            if self.reactprofileType == 'DMS': # adjust for compressed ploting range
+                heightscale *= 2
+
 
         for x,y in enumerate(self.reactprofile):
 
@@ -331,7 +335,7 @@ class ArcPlot(object):
         ax.tick_params(axis='y', direction='out', labelsize=6, left=True, right=False)
         ax.set_yticks( np.array(colthresh[1:])*heightscale+self.adjust )
         
-        labels = map(str, colthresh[1:])
+        labels = [str(x) for x in colthresh[1:]]
         labels[-1] = '>'+labels[-1]
         ax.set_yticklabels( labels )
         ax.set_ylabel('Norm. React.', position=(0,0), ha='left', size=6)
@@ -505,6 +509,7 @@ class ArcPlot(object):
         if self.reactprofile is not None:
             self.plotProfile(axT, bounds, **args)
 
+        
         if msg is not None:
             axT.text(msg_pos[0], msg_pos[1], msg, transform=axT.transAxes, **msg_kwargs)
 
@@ -529,7 +534,7 @@ class ArcPlot(object):
         if self.seq == '' or self.seq[0] == ' ':
             self.seq = ctObj.seq
         elif len(self.seq) != seqlen:
-            print "Warning:: CT length = {0}; expecting length = {1}".format(seqlen, len(self.seq))
+            print("Warning:: CT length = {0}; expecting length = {1}".format(seqlen, len(self.seq)))
         
 
         i = 0
@@ -675,7 +680,7 @@ class ArcPlot(object):
         if self.seq == '':
             self.seq = ' '*dpObj.length
         elif len(self.seq) != dpObj.length:
-            print "Warning:: dp file sequence length = {0}; CT/FASTA length = {1}".format(dpObj.length, len(self.seq))
+            print("Warning:: dp file sequence length = {0}; CT/FASTA length = {1}".format(dpObj.length, len(self.seq)))
 
 
         refcolors = [ (150,150,150), (255,204,0),  (72,143,205) ,(81, 184, 72) ]
@@ -859,7 +864,7 @@ class ArcPlot(object):
                 c.ct[i] = 0
     
 
-        for i in xrange(len(refCT.ct)):
+        for i in range(len(refCT.ct)):
             
             if refCT.ct[i] == compCT.ct[i]:
                 share.ct[i] = refCT.ct[i]
@@ -877,7 +882,7 @@ class ArcPlot(object):
 
         sens,ppv,nums = refCT.computePPVSens(compCT, False)
         msg = 'Sens={0:.2f} PPV={1:.2f}'.format(sens, ppv)
-        print msg
+        print(msg)
 
         if panel>0:
             self.toplegend = ArcLegend(colors=[sharedcolor,refcolor,compcolor], 
@@ -925,7 +930,7 @@ class ArcPlot(object):
         self.assignSeqColors(shape)
  
     
-    def readProfile(self, mapfile):
+    def readSHAPE(self, mapfile):
 
         shape, seq = RNAtools.readSHAPE(mapfile)
         
@@ -943,7 +948,7 @@ class ArcPlot(object):
 
 
 
-    def readDMSProfile(self, profilefile):
+    def readProfile(self, profilefile, dms=False):
         
         with open(profilefile) as inp:
             line = inp.readline().split()
@@ -954,18 +959,18 @@ class ArcPlot(object):
         
 
         if ftype==1:
-            self.readProfile(profilefile)
-        
+            self.readSHAPE(profilefile)
         else:
             import ReactivityProfile
             profile = ReactivityProfile.ReactivityProfile(profilefile)
-            profile.normalize(DMS=True)
             self.reactprofile = profile.normprofile
 
             if self.seq == '' or self.seq.count(' ') == len(self.seq):
                 self.seq = profile.sequence
+        
 
-        self.reactprofileType = 'DMS'
+        if dms:
+            self.reactprofileType = 'DMS'
         
         # need to give the plot some height if no other things added
         if max(self.height)==0:
@@ -978,14 +983,14 @@ class ArcPlot(object):
         height = []
         readMat = np.loadtxt(readMatFile)
 
-        for i in xrange(len(self.seq)):
+        for i in range(len(self.seq)):
             
-            for j in xrange(i,len(self.seq)):
+            for j in range(i,len(self.seq)):
                 if readMat[i][j] < thresh:
                     break
             n = float(j-i)
 
-            for j in xrange(i, -1, -1):
+            for j in range(i, -1, -1):
                 if readMat[i][j] < thresh:
                     break
             m = float(i-j)
@@ -1007,12 +1012,12 @@ class ArcPlot(object):
         
         yvals = np.zeros(len(self.seq))
 
-        for i in xrange(len(self.seq)):
+        for i in range(len(self.seq)):
 
-            for j in xrange(i, len(self.seq)):
+            for j in range(i, len(self.seq)):
                 if readmat[i,j] >=thresh:
 
-                    idx = int(round((j-i+1)/2))
+                    idx = int(round((j-i+1)/2.0))
                     
                     if idx > yvals[i+idx]:
                         yvals[i+idx] = idx
@@ -1057,7 +1062,8 @@ def parseArgs():
     prs.add_argument("--bound", type=str, help="comma separated bounds of region to plot (e.g. --bound 511,796)")
 
     prs.add_argument("--filternc", action="store_true", help="filter out non-canonical pairs in ct")
-    
+    prs.add_argument("--filtersingle", action="store_true", help="filter out singleton pairs in ct")
+
     prs.add_argument("--contactfilter", type=int, help="filter rings by specified contact distance (int value)")
     
     prs.add_argument("--filternegcorrs", action="store_true", help='filter out negative correlations')  
@@ -1080,7 +1086,7 @@ def parseArgs():
         spl = args.probability.split(',')
         try:
             if len(spl) > 1:
-                args.probability_bins = map(float, spl[1:])
+                args.probability_bins = [float(x) for x in spl[1:]]
                 args.probability = spl[0]
         except:
             raise TypeError('Incorrectly formatted --probability argument {}'.format(args.probability))
@@ -1095,7 +1101,7 @@ def parseArgs():
         spl = arg.split(',')
         try:
             if len(spl) == 3:
-                bins = map(float, spl[1:])
+                bins = [float(x) for x in spl[1:]]
                 outarg = spl[0]
             elif len(spl) != 1:
                 raise TypeError
@@ -1185,10 +1191,10 @@ if __name__=="__main__":
 
     if args.ct:
         
-        CT1 = RNAtools.CT(args.ct, structNum=args.ctstructnum, filterNC=args.filternc)
+        CT1 = RNAtools.CT(args.ct, structNum=args.ctstructnum, filterNC=args.filternc, filterSingle=args.filtersingle)
 
         if args.refct:
-            refCT = RNAtools.CT(args.refct, structNum=args.refctstructnum, filterNC=args.filternc)
+            refCT = RNAtools.CT(args.refct, structNum=args.refctstructnum, filterNC=args.filternc, filterSingle=args.filtersingle)
             aplot.compareCTs( refCT, CT1, panel=panel)
         
         else:
@@ -1250,7 +1256,7 @@ if __name__=="__main__":
         aplot.readProfile(args.profile)
     
     if args.dmsprofile:
-        aplot.readDMSProfile(args.dmsprofile)
+        aplot.readProfile(args.dmsprofile, dms=True)
 
     if args.showGrid:
         aplot.grid = True

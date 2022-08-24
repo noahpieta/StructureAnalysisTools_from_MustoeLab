@@ -1,7 +1,7 @@
 # arcPlot
 Code for plotting arcs of various types
 
-Copyright 2018 Anthony Mustoe
+Copyright 2022 Anthony Mustoe
 
 Contact: anthony.mustoe@bcm.edu
 -------------------------

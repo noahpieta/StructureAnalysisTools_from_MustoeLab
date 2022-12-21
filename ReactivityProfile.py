@@ -649,8 +649,11 @@ class ReactivityProfile(object):
         
             self.backprofile, self.backerror = prof.profile('raw', True)
 
-
-        self.subprofile, self.suberror = self.computeProfileDiff(self, compname='back', myname='raw')
+        
+        if np.all(np.isnan(self.backprofile)):
+            self.subprofile, self.suberror = np.copy(self.rawprofile), np.copy(self.rawerror)
+        else:
+            self.subprofile, self.suberror = self.computeProfileDiff(self, compname='back', myname='raw')
         
         if normalize:
             self.normalize(**kwargs)

@@ -14,10 +14,10 @@
 
 import sys, os, math, argparse
 
-import RNAtools2 as RNAtools
+import RNAStructureObjects as RNAtools
 
 import matplotlib 
-#matplotlib.use('Agg')
+matplotlib.use('Agg')
 matplotlib.rcParams['xtick.major.size'] = 8
 matplotlib.rcParams['xtick.major.width'] = 2.5
 matplotlib.rcParams['xtick.direction'] = 'out'
@@ -284,7 +284,7 @@ class ArcPlot(object):
         
         # check to see if DMS and colthresh defaults not overridden
         if self.reactprofileType == 'DMS' and colthresh == (-10,0.4,0.85,3):
-            colthresh = (-10, 0.15, 0.4, 1)
+            colthresh = (-10, 0.2, 0.4, 1)
             
 
         xvals = [ [] for i in range(4) ]
@@ -1214,7 +1214,7 @@ if __name__=="__main__":
 
     if args.pairmap:
 
-        from pmanalysis import PairMap
+        from pairmap_analysis import PairMap
         
         if args.ringpairsuper:
             aplot.addPairMap( PairMap(args.pairmap), panel=1, plotall=args.pairmap_all)
@@ -1237,7 +1237,7 @@ if __name__=="__main__":
     
     if args.compare_pairmap:
         
-        from pmanalysis import PairMap
+        from pairmap_analysis import PairMap
         
         aplot.addPairMap( PairMap(args.compare_pairmap), panel=panel, plotall=args.pairmap_all)
         panel *= -1

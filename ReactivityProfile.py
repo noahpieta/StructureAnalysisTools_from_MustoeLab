@@ -526,9 +526,10 @@ class ReactivityProfile(object):
             
 
             elif eDMS:
-                nfac, nerr = self.eDMS_normalization(self.reactivityByNt(nts=i, name=name))
-                normfactors[i] = nfac
-                errfactors[i] = nerr
+                for i in ntorder:
+                    nfac, nerr = self.eDMS_normalization(self.reactivityByNt(nts=i, name=name))
+                    normfactors[i] = nfac
+                    errfactors[i] = nerr
 
 
             elif oldDMS:

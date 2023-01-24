@@ -13,7 +13,7 @@
 
 
 import sys, os, math, argparse
-
+import pandas as pd
 import RNAStructureObjects as RNAtools
 
 import matplotlib 
@@ -142,6 +142,8 @@ class ArcPlot(object):
 
         self.toplegend = None
         self.botlegend = None
+        
+        self.annotation = [] # list of annotation information
 
 
     def addFasta(self, fastafile):
@@ -152,16 +154,12 @@ class ArcPlot(object):
    
                 if line[0]=='>':
                     read = True
-                    continue
-
-                line = line.strip()
-    
-                if read and len(line) > 0:
-                    self.seq += line
-
-                                     
-
-
+                else:
+                    line = line.rstrip()
+                    if read and len(line) > 0:
+                        self.seq += line
+                        
+        self.length = len(self.seq)
 
     def addArcPath(self, outerPair, innerPair=None, panel=1, color = 'black', alpha=0.5, window=1):
         """ add the arPath object for a given set of parameters
@@ -359,6 +357,95 @@ class ArcPlot(object):
                 patch = patches.Rectangle((i+0.5,-4),window,4,linewidth=0,fill=True,alpha=0.2)
                 self.botPatches.append(patch)     
                 
+                
+   def addANNO(self, ANNO, length, panel, colors=None):
+        
+        from math import sqrt
+        """Add annotations as bars"""
+        
+        if colors:
+            colors = colors.split(',')
+        else:
+            colors = ['darkblue', 'darkgreen', 'darkred', 'darkorange', 'darkmagenta']
+            
+        groups = ANNO['group'].unique()
+        colordict = {}
+        for group, col in zip(groups, colors):
+            colordict[group] = col
+            
+        ANNO['color'] = ANNO['group'].apply(lambda g: colordict[g])
+        #cycol = cycle('bgrcmk')
+        
+        anno_count = 2
+        plot_ratio_used = 0.1
+        while plot_ratio_used < 0.9:
+            if len(ANNO['label'].unique()) <= anno_count:
+                break
+            else:
+                plot_ratio_used += 0.1
+                anno_count += 2
+        else:
+            plot_ratio_used = 0.9
+         
+        plot_area_height = max(self.height)*plot_ratio_used
+        height_per_anno = plot_area_height/len(ANNO['label'].unique())
+        annotation_half_width = height_per_anno*0.2
+        annotation_text_offset = height_per_anno * 0.25
+        
+        label = ''
+        index = -1
+        
+        for idx, row in ANNO.iterrows():
+            if row['label'] != label:
+                index += 1
+                label = row['label']
+
+            start = row['tstart']
+            end = row['tend']
+            coordinate = [(start, (-index-1)*height_per_anno + annotation_half_width), \
+                          (start, (-index-1)*height_per_anno - annotation_half_width), \
+                          (end, (-index-1)*height_per_anno - annotation_half_width), \
+                          (end, (-index-1)*height_per_anno + annotation_half_width), \
+                          (0, 0)]
+            codes = [Path.MOVETO, \
+                     Path.LINETO, \
+                     Path.LINETO, \
+                     Path.LINETO, \
+                     Path.CLOSEPOLY]
+
+            # move arcs away from x-axis
+            if panel == 1:
+                adval = max(self.height)*0.025
+            else:
+                adval = -max(self.height)*0.025
+            coordinate = [(x,y+adval) for x,y in coordinate]
+            
+            anno_path = Path(coordinate, codes)
+            anno_patch = patches.PathPatch(anno_path, facecolor=row['color'], \
+                                           linewidth = 0, label = row['group'], alpha = 0.8)
+            
+            annotation_x_coor = (start + end)/2
+            annotation_y_coor = (-index-1)*height_per_anno + annotation_text_offset + adval
+            annotation = (label, annotation_x_coor, annotation_y_coor, row['color'], height_per_anno)
+            self.annotation.append(annotation)
+
+            if panel == 1:
+                self.topPatches.append(anno_patch)
+                self.height[1] = length*sqrt(len(ANNO))*0.02
+            else:
+                self.botPatches.append(anno_patch)
+                self.height[0] = length*sqrt(len(ANNO))*0.02
+                
+        # Add the legend
+        t = 'Group'
+        c = list(colordict.values())
+        l = list(colordict.keys())
+        
+        if panel>0:
+            self.toplegend = ArcLegend(title=t, colors=c, labels=l)
+        else:
+            self.botlegend = ArcLegend(title=t, colors=c, labels=l) 
+             
 
 
 
@@ -495,7 +582,14 @@ class ArcPlot(object):
                 
                 axT.annotate(nuc, xy=(i+0.5, 0),fontproperties=fontProp,color=col,
                              annotation_clip=False,verticalalignment="baseline")
-        
+
+        # add annotation for eCLIP data
+        # each element is a tuple = (label, x-coor, y-coor, color, fontsize)
+        for annotation in self.annotation:
+            axB.text(annotation[1], annotation[2], annotation[0], \
+                     color = annotation[3], fontsize = annotation[4], \
+                     horizontalalignment='center', verticalalignment='bottom')                
+                
 
         #if self.intdistance is not None:
         #    xvals = np.arange(bounds[0]+1, bounds[1]+1)
@@ -1024,6 +1118,171 @@ class ArcPlot(object):
         
         self.intdistance = panel*yvals
 
+class ANNO():
+    """ANNO object to process functional annotations"""
+    
+    def __init__(self, name, length):
+        self.name = name
+        self.length = length
+        self.df = pd.DataFrame()
+    
+    def get_rna_info(self, bedfile):
+        self.start_coors = []
+        self.end_coors = []
+        self.exons = [0]
+        
+        with open(bedfile, 'r') as f:
+            for line in f:
+                spl = line.rstrip().split('\t')
+                self.chr = spl[0]
+                self.start_coors.append(int(spl[1]))
+                self.end_coors.append(int(spl[2]))
+                self.strand = spl[3]
+
+                exon = int(spl[2]) - int(spl[1])
+                self.exons.append(exon) # use this exon length to update transcript coordinate
+         
+        self.exons = self.exons[:-1]
+        
+        self.start = min(self.start_coors)
+        self.end = min(self.end_coors)
+        self.length = self.end - self.start + 1
+        
+        if 'chr' not in self.chr:
+            self.chr = 'chr' + self.chr
+    
+    # if use "bound" flag, remove peaks outside of these bounds and clip peaks within bound
+    def apply_bound(self, bound):
+
+        lower_bound = bound[0]
+        upper_bound = bound[1]
+            
+        temp = self.df[(self.df['tend']<lower_bound)|(upper_bound<self.df['tstart'])]
+        self.df = self.df[~self.df.index.isin(temp.index)].reset_index(drop=True)
+        self.df['tstart'] = self.df['tstart'].clip(lower = lower_bound)
+        self.df['tend'] = self.df['tend'].clip(upper = upper_bound)
+        self.df = self.df.dropna()
+    
+    def read_anno(self, anno, bound = None):
+        
+        names = ['tstart', 'tend', 'label', 'group']
+        temp = pd.read_csv(anno, sep = '\t', names = names)
+        temp.fillna('', inplace = True) # fill N/A values with an empty string
+        self.df = pd.concat([self.df, temp])
+    
+    # function to find features that are mapped to the provided genomic coordinates
+    def intersect(self, df, start, end, added_length):
+        temp = df[df['chr']==self.chr] #check for same chromosome
+        if self.strand:
+            temp = temp[temp['strand']==self.strand] #check for same strand
+            
+        not_intersect = temp[(end<temp['start'])|(temp['end']<start)]
+        intersectdf = temp[~temp.index.isin(not_intersect.index)].reset_index(drop=True)
+        if not intersectdf.empty:
+            intersectdf['tstart'] = intersectdf['start'] - start
+            intersectdf['tstart'] = intersectdf['tstart'] + added_length
+
+            intersectdf['tend'] = intersectdf['end'] - start
+            intersectdf['tend'] = intersectdf['tend'] + added_length
+        
+        return intersectdf
+
+    
+    def read_annodir(self, annodir, cutoff, annolist):
+        col_names = ['chr', 'start', 'end', 'info', '1000', 'strand', 'score1', 'score2']
+        
+        df = pd.DataFrame()
+        added_length = 0
+        for start, end, exon in zip(self.start_coors, self.end_coors, self.exons):
+            added_length += exon
+            for f in os.listdir(annodir):
+                if '.bed' in f:
+                    fn = f'{annodir}/{f}'  
+                    if '//' in fn:
+                        fn = fn.replace('//', '/')
+
+                    temp = pd.read_csv(fn, sep = '\t', names = col_names, 
+                                       usecols = [i for i in range(8)],
+                                      dtype = {'start': int, 'end': int})
+                    
+                    # deal with eCLIP files that does not have a proper label
+                    skip = False
+                    if '.' in temp['info'].unique():
+                        skip = True
+                        
+                    if skip:
+                        continue
+                            
+                    out = self.intersect(temp, start, end, added_length) # apply intersect function
+                    if not out.empty:
+                        df = pd.concat([df, out])
+
+        if len(df) == 0:
+            print(f'No rows intersect with {self.name} in the reference file(s). Exiting')
+            exit()
+            
+        # apply score filter
+        if cutoff:
+            score1, score2 = [float(i) for i in cutoff.split(',')]
+            df = df[(df['score1']>=score1)&(df['score2']>=score2)]
+            
+        df['tstart'] = df['tstart'].clip(lower = 0) # replace all negative values to lower bound
+        df['tend'] = df['tend'].clip(upper = self.length) # set maximum value to upper bound
+
+        if self.strand == '-':
+            newstart = self.length - df['tend']
+            newend = self.length - df['tstart']
+            df['tstart'] = newstart
+            df['tend'] = newend
+
+        df.reset_index(drop=True, inplace = True)
+        df.to_csv(f'{self.name}_map.csv', sep = '\t', index = False)
+        count = len(df)
+        print(f'{count} features in reference files(s) mapped to provided coordinates. See output file {self.name}_map.csv')
+        #print(self.df)
+
+        def split_info(info):
+            spl = info.split('_')
+            if len(spl) > 1:
+                return spl[0], spl[1]
+            elif len(spl) == 1:
+                return spl[0], 'group'
+
+        df['label'], df['hue'] = zip(*df['info'].apply(lambda g: split_info(g)))
+
+        def merge_peak(group):
+            rbp = group['label'].values[0]
+            group['diff'] = group['tstart'] - group['tend'].shift(1)
+
+            labels = []
+            no = 0
+            for idx, row in group.iterrows():
+                if row['diff'] is np.nan:
+                    labels.append(0)
+                elif row['diff'] <= 0:
+                    labels.append(no)
+                else:
+                    no += 1
+                    labels.append(no)
+
+            group['diff'] = labels
+            return group
+
+        df = df.sort_values(by = ['info', 'tstart'])
+        df = df.groupby('info').apply(lambda g: merge_peak(g))
+        df = df.groupby(['info', 'diff']).agg({'tstart': 'min', 'tend': 'max'}).reset_index()
+        df = df.sort_values(by = 'info')
+        df['label'], df['group'] = zip(*df['info'].apply(lambda g: split_info(g)))
+
+        # annolist flag; only plot provided labels
+        if annolist:
+            df['index'] = df['label']
+            df = df.set_index('index')
+            df = df.loc[annolist.split(',')]
+
+        self.df = pd.concat([self.df, df])
+
+        # end of ANNO object
 
 #############################################################################
 
@@ -1066,7 +1325,23 @@ def parseArgs():
 
     prs.add_argument("--contactfilter", type=int, help="filter rings by specified contact distance (int value)")
     
-    prs.add_argument("--filternegcorrs", action="store_true", help='filter out negative correlations')  
+    prs.add_argument("--filternegcorrs", action="store_true", help='filter out negative correlations') 
+    # annotation arguments
+    prs.add_argument("--annotations", type=str, help="Path to a tab-delimited text file specifying features to plot.\
+                                                     The first 2 columns contain the starting and ending coordinate. \
+                                                     The third and fourth columns contain the feature label and group.")
+    prs.add_argument("--name", type=str, default='query_RNA', help="RNA name. Default is query_RNA.")
+    prs.add_argument("--coordinate", type=str, help='Path to a tab-delimited text file specifying RNA genomic coordinates.\
+                                                Require 4 columns: chromosome start end strand. \
+                                                Each line corresponds to one exon.')
+    prs.add_argument("--annodir", type=str, help="Path to directory containing annotations files.")
+    prs.add_argument("--cutoff", type=str, default = None, help='Cut off value for column 8 and 9. In eCLIP experiments, \
+                    these columns contains p-value and enrichment scores (recommended threshold is 3 for both). Enter \
+                    values as comma-separated list (e.g. 3,3).')
+    prs.add_argument("--annolist", type=str, default=None, help='An ordered list of labels to plot separated by comma. \
+                                                    (e.g. PUM1,PUM2 will only plot features with PUM1 and PUM2 labels.')
+    prs.add_argument("--annocols", type=str, help='Define a color to plot annotation. If plotting two or more groups, \
+                                                provide a list of colors separated by comma (e.g. darkblue,darkgreen)')
 
     args = prs.parse_args()
  
@@ -1184,6 +1459,19 @@ if __name__=="__main__":
     CT1=None
     
     aplot = ArcPlot(title = args.title, fasta=args.fasta)
+    
+    if args.annotations:
+        anno = ANNO(name = args.name, length = aplot.length)
+        anno.read_anno(args.annotations, args.bound)
+    
+    if args.coordinate and args.annodir:
+        anno = ANNO(name = args.name, length = aplot.length)
+        anno.get_rna_info(args.coordinate)
+        anno.read_annodir(args.annodir, args.cutoff, args.annolist)
+    
+    # deal with bound 
+    if args.bound:
+        anno.apply_bound(args.bound)
 
     panel = 1
     if args.bottom:
@@ -1242,8 +1530,8 @@ if __name__=="__main__":
         aplot.addPairMap( PairMap(args.compare_pairmap), panel=panel, plotall=args.pairmap_all)
         panel *= -1
 
-
-
+    if args.annodir or args.annotations:
+        aplot.addANNO(anno.df, length = anno.length, panel = -1, colors = args.annocols)
 
     #if arg.intDistance:
     #    aplot.addInteractionDistance(arg.intDistance, arg.depthThresh, panel)

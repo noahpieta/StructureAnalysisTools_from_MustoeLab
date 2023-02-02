@@ -33,6 +33,8 @@ import matplotlib.gridspec as gridspec
 from matplotlib.path import Path
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
+from ReactivityProfile import ReactivityProfile
+
 import numpy as np
 
 
@@ -328,7 +330,7 @@ class ArcPlot(object):
                     continue
 
                 if y is None or y != y or y<colthresh[0]:
-                    if spltSeq[x] in ['g', 'a', 'u', 't', 'c', 'G']:
+                    if spltSeq[x] in ['g', 'G']:
                         xvals[0].append(x+1)
                         yvals[0].append(-1)
                 elif y < colthresh[1]:
@@ -343,12 +345,6 @@ class ArcPlot(object):
                         yvals[3].append(colthresh[3])
                     else:
                         yvals[3].append(y)
-        if N7:
-        # If the values are N7 values, make them negative
-            yvals[0] = [elem * -1 for elem in yvals[0]] 
-            yvals[1] = [elem * -1 for elem in yvals[1]] 
-            yvals[2] = [elem * -1 for elem in yvals[2]] 
-            yvals[3] = [elem * -1 for elem in yvals[3]] 
 
 
         if not N7:
@@ -362,14 +358,6 @@ class ArcPlot(object):
             ax.bar(xvals[3], yvals[3], alpha=0.7, linewidth=0, color='red',
                    align='center', clip_on=False, bottom=self.adjust)
 
-        else:
-            ax.bar(xvals[0], -.1, alpha=0.7, linewidth=0, color=(179./255, 171./255, 148./255), align='center', clip_on=False)
-            ax.bar(xvals[1], yvals[1], alpha=0.7, linewidth=0, color='black', align='center', clip_on=False)
-            ax.bar(xvals[2], yvals[2], alpha=0.7, linewidth=0, color='hotpink', align='center', clip_on=False)
-            ax.bar(xvals[3], yvals[3], alpha=0.7, linewidth=0, color='darkviolet', align='center', clip_on=    False)
-           
-        # deal with the axis
-        if not N7:
             ax.axes.get_yaxis().set_visible(True)
             ax.tick_params(axis='y', direction='out', labelsize=6, left=True, right=False)
             ax.set_yticks( np.array(colthresh[1:])*heightscale+self.adjust )
@@ -384,7 +372,17 @@ class ArcPlot(object):
                 ax.spines[l].set_visible(False)
                
             ax.spines['left'].set_bounds(self.adjust, colthresh[3]*heightscale+self.adjust)
+
         else:
+        # If the values are N7 values, make them negative
+            yvals[0] = [elem * -1 for elem in yvals[0]] 
+            yvals[1] = [elem * -1 for elem in yvals[1]] 
+            yvals[2] = [elem * -1 for elem in yvals[2]] 
+            yvals[3] = [elem * -1 for elem in yvals[3]] 
+            ax.bar(xvals[0], -.1, alpha=0.7, linewidth=0, color=(179./255, 171./255, 148./255), align='center', clip_on=False)
+            ax.bar(xvals[1], yvals[1], alpha=0.7, linewidth=0, color='black', align='center', clip_on=False)
+            ax.bar(xvals[2], yvals[2], alpha=0.7, linewidth=0, color='hotpink', align='center', clip_on=False)
+            ax.bar(xvals[3], yvals[3], alpha=0.7, linewidth=0, color='darkviolet', align='center', clip_on=    False)
             colthresh = [elem * -1 for elem in colthresh]
 
             ax.axes.get_yaxis().set_visible(True)
@@ -403,6 +401,7 @@ class ArcPlot(object):
 
             ax.set_frame_on(False)
             ax.tick_params(axis='both', which='both', top=False, bottom=False, labelbottom=False)
+
 
 
     
@@ -532,116 +531,12 @@ class ArcPlot(object):
         fig.subplots_adjust(hspace=0.0)
 
         if self.lower_N7_Plot == True and not doubleplot:
-            print("Now handing off to plotProfile for N7")
-            print("axB is none, thus I am making axB plot")
             axT = fig.add_subplot(211)
             axB = None
             #axB = fig.add_subplot(212, sharex=axT)
             doubleplot = True
             ##################
-            outerPair = (1,2) 
-            innerPair=None
-            panel=-1 
-            color = 'black'
-            alpha=0
-            window=1 
-            if innerPair is None:
-                innerPair = [outerPair[0]+0.5 + window-1, outerPair[1]-0.5]
-                outerPair = [outerPair[0]-0.5, outerPair[1]+0.5 + window-1]
-            else:
-                innerPair = [innerPair[0]+0.5, innerPair[1]-0.5]
-                outerPair = [outerPair[0]-0.5, outerPair[1]+0.5]
-                
-            innerRadius = (innerPair[1] - innerPair[0])/2.0
-            outerRadius = (outerPair[1] - outerPair[0])/2.0
-            
-            verts = []
-            codes = []
-
-            # outer left
-            verts.append( (outerPair[0], 0) )
-            codes.append( Path.MOVETO )
-
-            # outer left control 1
-            verts.append( (outerPair[0], panel*self.handleLength*outerRadius) )
-            codes.append( Path.CURVE4 )
-
-            # outer left control 2
-            verts.append( (outerPair[0]+outerRadius*(1-self.handleLength), panel*outerRadius) )
-            codes.append( Path.CURVE4 )
-
-            # outer center
-            verts.append( (outerPair[0]+outerRadius, panel*outerRadius) )
-            codes.append( Path.CURVE4 )
-
-            # outer right control 1
-            verts.append( (outerPair[0]+outerRadius*(1+self.handleLength), panel*outerRadius) )
-            codes.append( Path.CURVE4 )
-
-            # outer right control 2
-            verts.append( (outerPair[1], panel*self.handleLength*outerRadius) )
-            codes.append( Path.LINETO )
-                           
-            # outer right
-            verts.append( (outerPair[1], 0) )
-            codes.append( Path.LINETO )
-                            
-            # inner right
-            verts.append( (innerPair[1], 0) )
-            codes.append( Path.LINETO )
-                
-            # inner right control 1
-            verts.append( (innerPair[1], panel*self.handleLength*innerRadius) )
-            codes.append( Path.CURVE4 )
-
-            # inner right control 2
-            verts.append( (innerPair[0]+innerRadius*(1+self.handleLength), panel*innerRadius) )
-            codes.append( Path.CURVE4 )
-
-            # inner center
-            verts.append( (innerPair[0]+innerRadius, panel*innerRadius) )
-            codes.append( Path.CURVE4 )
-
-            # inner left control 1 
-            verts.append( (innerPair[0]+innerRadius*(1-self.handleLength), panel*innerRadius) )
-            codes.append( Path.CURVE4 )
-
-            # inner left control 2
-            verts.append( (innerPair[0], panel*self.handleLength*innerRadius) )
-            codes.append( Path.LINETO )
-     
-            # inner left
-            verts.append( (innerPair[0], 0) )
-            codes.append( Path.LINETO )
-     
-            # outer left duplicate 
-            verts.append( (outerPair[0], 0) )
-            codes.append( Path.CLOSEPOLY )
-     
-            # rescale verts
-
-            if panel == 1:
-                adval = self.adjust
-            else:
-                adval = -(self.adjust-1)
-            
-            # move arcs away from x-axis
-            verts = [ (x,y+adval) for x,y in verts ]
-             
-
-            indpath = Path(verts, codes)
-            patch = patches.PathPatch(indpath, facecolor=color, alpha=alpha,
-                                      linewidth=0, edgecolor='none')
-            
-            if panel == 1:
-                self.topPatches.append(patch)
-                if outerRadius > self.height[1]:
-                    self.height[1] = outerRadius
-            
-            else:
-                self.botPatches.append(patch)
-                if outerRadius > self.height[0]:
-                    self.height[0] = outerRadius
+            self.addArcPath((1,2), panel=-1, alpha = 0)
 
     
         else:
@@ -1232,8 +1127,7 @@ class ArcPlot(object):
         if ftype==1:
             self.readSHAPE(profilefile)
         else:
-            import ReactivityProfile
-            profile = ReactivityProfile.ReactivityProfile(profilefile)
+            profile = ReactivityProfile(profilefile)
             self.reactprofile = profile.normprofile
 
             if self.seq == '' or self.seq.count(' ') == len(self.seq):
@@ -1297,8 +1191,7 @@ class ArcPlot(object):
 
 
     def readN7Profile(self, N7File, panel=-1):
-        import ReactivityProfile
-        profile = ReactivityProfile.ReactivityProfile(N7File)
+        profile = ReactivityProfile(N7File)
         react = profile.normprofile
 
 

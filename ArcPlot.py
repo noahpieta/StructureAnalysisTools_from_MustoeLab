@@ -33,6 +33,8 @@ import matplotlib.gridspec as gridspec
 from matplotlib.path import Path
 from matplotlib.ticker import MultipleLocator, FormatStrFormatter
 
+from ReactivityProfile import ReactivityProfile
+
 import numpy as np
 
 
@@ -139,6 +141,9 @@ class ArcPlot(object):
 
         self.reactprofile = None
         self.reactprofileType = 'SHAPE'
+
+        self.N7profile = None
+        self.lower_N7_Plot = None
 
         self.toplegend = None
         self.botlegend = None
@@ -267,7 +272,7 @@ class ArcPlot(object):
 
 
 
-    def plotProfile(self, ax, bounds=None, colthresh = (-10, 0.4, 0.85, 3), heightscale=None):
+    def plotProfile(self, ax, bounds=None, colthresh = (-10, 0.4, 0.85, 3), heightscale=None, N7=False):
         """Add a reactivity profile to the axes (self.reactprofile needs to be set)
         
         ax          = axes object to add plot. Expected to be top axis
@@ -295,54 +300,108 @@ class ArcPlot(object):
             if self.reactprofileType == 'DMS': # adjust for compressed ploting range
                 heightscale *= 2
 
+        if not N7:
+            for x,y in enumerate(self.reactprofile):
 
-        for x,y in enumerate(self.reactprofile):
+                if bounds is not None and x<bounds[0] or x>bounds[1]:
+                    continue
 
-            if bounds is not None and x<bounds[0] or x>bounds[1]:
-                continue
-
-            if y is None or y != y or y<colthresh[0]:
-                xvals[0].append(x+1)
-                yvals[0].append(0.6*heightscale+self.adjust)
-            elif y < colthresh[1]:
-                xvals[1].append(x+1)
-                yvals[1].append(y*heightscale)
-            elif y < colthresh[2]:
-                xvals[2].append(x+1)
-                yvals[2].append(y*heightscale)
-            else:
-                xvals[3].append(x+1)
-                if y > colthresh[3]:
-                    yvals[3].append(colthresh[3]*heightscale)
+                if y is None or y != y or y<colthresh[0]:
+                    xvals[0].append(x+1)
+                    yvals[0].append(0.6*heightscale+self.adjust)
+                elif y < colthresh[1]:
+                    xvals[1].append(x+1)
+                    yvals[1].append(y*heightscale)
+                elif y < colthresh[2]:
+                    xvals[2].append(x+1)
+                    yvals[2].append(y*heightscale)
                 else:
-                    yvals[3].append(y*heightscale)
+                    xvals[3].append(x+1)
+                    if y > colthresh[3]:
+                        yvals[3].append(colthresh[3]*heightscale)
+                    else:
+                        yvals[3].append(y*heightscale)
 
         
-        ax.bar(xvals[0], yvals[0], alpha=0.7, linewidth=0, color=(179./255, 171./255, 148./255),
-               align='center', clip_on=False, bottom=-0.3*heightscale)
-    
-        ax.bar(xvals[1], yvals[1], alpha=0.7, linewidth=0, color='black',
-               align='center', clip_on=False, bottom=self.adjust)
-        ax.bar(xvals[2], yvals[2], alpha=0.7, linewidth=0, color='orange',
-               align='center', clip_on=False, bottom=self.adjust)
-        ax.bar(xvals[3], yvals[3], alpha=0.7, linewidth=0, color='red',
-               align='center', clip_on=False, bottom=self.adjust)
-           
-        # deal with the axis
-        ax.axes.get_yaxis().set_visible(True)
-        ax.tick_params(axis='y', direction='out', labelsize=6, left=True, right=False)
-        ax.set_yticks( np.array(colthresh[1:])*heightscale+self.adjust )
+        else: 
+            spltSeq = list(self.seq)
+            for x,y in enumerate(self.N7profile):
+                if bounds is not None and x<bounds[0] or x>bounds[1]:
+                    continue
+
+                if y is None or y != y or y<colthresh[0]:
+                    if spltSeq[x] in ['g', 'G']:
+                        xvals[0].append(x+1)
+                        yvals[0].append(-1)
+                elif y < colthresh[1]:
+                    xvals[1].append(x+1)
+                    yvals[1].append(y)
+                elif y < colthresh[2]:
+                    xvals[2].append(x+1)
+                    yvals[2].append(y)
+                else:
+                    xvals[3].append(x+1)
+                    if y > colthresh[3]:
+                        yvals[3].append(colthresh[3])
+                    else:
+                        yvals[3].append(y)
+
+
+        if not N7:
+            ax.bar(xvals[0], yvals[0], alpha=0.7, linewidth=0, color=(179./255, 171./255, 148./255),
+                   align='center', clip_on=False, bottom=-0.3*heightscale)
         
-        labels = [str(x) for x in colthresh[1:]]
-        labels[-1] = '>'+labels[-1]
-        ax.set_yticklabels( labels )
-        ax.set_ylabel('Norm. React.', position=(0,0), ha='left', size=6)
-           
-        ax.set_frame_on(True)
-        for l in ('right','top','bottom'):
-            ax.spines[l].set_visible(False)
-           
-        ax.spines['left'].set_bounds(self.adjust, colthresh[3]*heightscale+self.adjust)
+            ax.bar(xvals[1], yvals[1], alpha=0.7, linewidth=0, color='black',
+                   align='center', clip_on=False, bottom=self.adjust)
+            ax.bar(xvals[2], yvals[2], alpha=0.7, linewidth=0, color='orange',
+                   align='center', clip_on=False, bottom=self.adjust)
+            ax.bar(xvals[3], yvals[3], alpha=0.7, linewidth=0, color='red',
+                   align='center', clip_on=False, bottom=self.adjust)
+
+            ax.axes.get_yaxis().set_visible(True)
+            ax.tick_params(axis='y', direction='out', labelsize=6, left=True, right=False)
+            ax.set_yticks( np.array(colthresh[1:])*heightscale+self.adjust )
+            
+            labels = [str(x) for x in colthresh[1:]]
+            labels[-1] = '>'+labels[-1]
+            ax.set_yticklabels( labels )
+            ax.set_ylabel('Norm. React.', position=(0,0), ha='left', size=6)
+               
+            ax.set_frame_on(True)
+            for l in ('right','top','bottom'):
+                ax.spines[l].set_visible(False)
+               
+            ax.spines['left'].set_bounds(self.adjust, colthresh[3]*heightscale+self.adjust)
+
+        else:
+        # If the values are N7 values, make them negative
+            yvals[0] = [elem * -1 for elem in yvals[0]] 
+            yvals[1] = [elem * -1 for elem in yvals[1]] 
+            yvals[2] = [elem * -1 for elem in yvals[2]] 
+            yvals[3] = [elem * -1 for elem in yvals[3]] 
+            ax.bar(xvals[0], -.1, alpha=0.7, linewidth=0, color=(179./255, 171./255, 148./255), align='center', clip_on=False)
+            ax.bar(xvals[1], yvals[1], alpha=0.7, linewidth=0, color='black', align='center', clip_on=False)
+            ax.bar(xvals[2], yvals[2], alpha=0.7, linewidth=0, color='hotpink', align='center', clip_on=False)
+            ax.bar(xvals[3], yvals[3], alpha=0.7, linewidth=0, color='darkviolet', align='center', clip_on=    False)
+            colthresh = [elem * -1 for elem in colthresh]
+
+            ax.axes.get_yaxis().set_visible(True)
+            ax.tick_params(axis='y', direction='out', labelsize=6, left=True, right=False)
+            ax.set_yticks( np.array(colthresh))
+
+            labels = [str(x) for x in colthresh]
+            labels[-1] = '>'+labels[-1]
+            ax.set_yticklabels( labels )
+
+
+
+
+            ax.spines['left'].set_bounds(0, -1 * colthresh[3])
+
+
+            ax.set_frame_on(False)
+            ax.tick_params(axis='both', which='both', top=False, bottom=False, labelbottom=False)
+
 
 
     
@@ -471,8 +530,18 @@ class ArcPlot(object):
         fig = plot.figure( figsize=(figWidth, figHeight)) # 500*scaleFactor
         fig.subplots_adjust(hspace=0.0)
 
-        axT = fig.add_subplot(211)
-        axB = None
+        if self.lower_N7_Plot == True and not doubleplot:
+            axT = fig.add_subplot(211)
+            axB = None
+            #axB = fig.add_subplot(212, sharex=axT)
+            doubleplot = True
+            ##################
+            self.addArcPath((1,2), panel=-1, alpha = 0)
+
+    
+        else:
+            axT = fig.add_subplot(211)
+            axB = None
 
         for pat in self.topPatches:
             axT.add_patch(pat)
@@ -602,6 +671,9 @@ class ArcPlot(object):
 
         if self.reactprofile is not None:
             self.plotProfile(axT, bounds, **args)
+    
+        if self.lower_N7_Plot == True:
+            self.plotProfile(axB, bounds, colthresh = (0, 2, 5, 10), N7=True, **args)
 
         
         if msg is not None:
@@ -1055,8 +1127,7 @@ class ArcPlot(object):
         if ftype==1:
             self.readSHAPE(profilefile)
         else:
-            import ReactivityProfile
-            profile = ReactivityProfile.ReactivityProfile(profilefile)
+            profile = ReactivityProfile(profilefile)
             self.reactprofile = profile.normprofile
 
             if self.seq == '' or self.seq.count(' ') == len(self.seq):
@@ -1117,6 +1188,22 @@ class ArcPlot(object):
                         yvals[i+idx] = idx
         
         self.intdistance = panel*yvals
+
+
+    def readN7Profile(self, N7File, panel=-1):
+        profile = ReactivityProfile(N7File)
+        react = profile.normprofile
+
+
+        for ite in range(len(react)):
+            if (np.isnan(react[ite])):
+                react[ite] = -10
+        
+
+        if (panel == -1):
+            self.lower_N7_Plot=True
+
+        self.N7profile = react
 
 class ANNO():
     """ANNO object to process functional annotations"""
@@ -1288,6 +1375,10 @@ class ANNO():
 
         # end of ANNO object
 
+
+    
+
+
 #############################################################################
 
 
@@ -1346,6 +1437,8 @@ def parseArgs():
                                                     (e.g. PUM1,PUM2 will only plot features with PUM1 and PUM2 labels.')
     prs.add_argument("--annocols", type=str, help='Define a color to plot annotation. If plotting two or more groups, \
                                                 provide a list of colors separated by comma (e.g. darkblue,darkgreen)')
+
+    prs.add_argument("--N7profile",type=str, help='Plots N7 reactivity from profile file')
 
     args = prs.parse_args()
  
@@ -1549,6 +1642,9 @@ if __name__=="__main__":
     
     if args.dmsprofile:
         aplot.readProfile(args.dmsprofile, dms=True)
+
+    if args.N7profile:
+        aplot.readN7Profile(args.N7profile)
 
     if args.showGrid:
         aplot.grid = True

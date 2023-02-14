@@ -355,10 +355,10 @@ class ArcPlot(object):
                 patch = patches.Rectangle((i+0.5,0),window,4,linewidth=0,fill=True,alpha=0.2)
                 self.topPatches.append(patch)     
                 patch = patches.Rectangle((i+0.5,-4),window,4,linewidth=0,fill=True,alpha=0.2)
-                self.botPatches.append(patch)     
+                self.botPatches.append(patch)
                 
                 
-   def addANNO(self, ANNO, length, panel, colors=None):
+    def addANNO(self, ANNO, length, panel, colors=None):
         
         from math import sqrt
         """Add annotations as bars"""
@@ -1197,7 +1197,7 @@ class ANNO():
             added_length += exon
             for f in os.listdir(annodir):
                 if '.bed' in f:
-                    fn = f'{annodir}/{f}'  
+                    fn = '{}/{}'.format(annodir,f) # f'{annodir}/{f}'  
                     if '//' in fn:
                         fn = fn.replace('//', '/')
 
@@ -1218,7 +1218,8 @@ class ANNO():
                         df = pd.concat([df, out])
 
         if len(df) == 0:
-            print(f'No rows intersect with {self.name} in the reference file(s). Exiting')
+            print('No rows intersect with {} in the reference file(s). Exiting'.format(self.name))
+            #print(f'No rows intersect with {self.name} in the reference file(s). Exiting')
             exit()
             
         # apply score filter
@@ -1236,9 +1237,12 @@ class ANNO():
             df['tend'] = newend
 
         df.reset_index(drop=True, inplace = True)
-        df.to_csv(f'{self.name}_map.csv', sep = '\t', index = False)
+        #df.to_csv(f'{self.name}_map.csv', sep = '\t', index = False)
+        df.to_csv('{}_map.csv'.format(self.name), sep = '\t', index = False)
+
         count = len(df)
-        print(f'{count} features in reference files(s) mapped to provided coordinates. See output file {self.name}_map.csv')
+        #print(f'{count} features in reference files(s) mapped to provided coordinates. See output file {self.name}_map.csv')
+        print('{} features in reference files(s) mapped to provided coordinates. See output file {}_map.csv'.format(count, self.name))
         #print(self.df)
 
         def split_info(info):

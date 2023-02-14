@@ -161,7 +161,7 @@ class ReactivityProfile(object):
 
         ext = filename.split('.')[-1].lower()
         
-        if ext == 'txt':
+        if ext == 'txt' or ext == 'txtga':
             # assume it has profile format
             prof = self.readProfileFile(filename, **kwargs) #
 
